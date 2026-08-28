@@ -1,0 +1,28 @@
+services:
+  flakehunter:
+    build: .
+    image: flakehunter:phase0
+    init: true          # PID 1 reaper: orphaned test subprocesses cannot accumulate
+    stdin_open: true    # the Phase 8 human approval gate prompts on a TTY
+    tty: true
+    user: "1000:1000"
+    working_dir: /app
+    mem_limit: 4g
+    pids_limit: 512
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # Read-only: the agent must never be able to mutate its own source,
+      # and the pristine corpus must stay pristine.
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./scripts:/app/scripts:ro
+      - ./corpus:/app/corpus:ro
+      # Writable: trajectories and approved artifacts leave the sandbox here.
+      - ./traces:/app/traces
+      - ./results:/app/results
+    tmpfs:
+      # Per-run scratch workdirs. RAM-backed for speed (we do ~26k runs per
+      # evaluation) and guaranteed not to persist across container restarts.
+      - /scratch:mode=1777,size=1g

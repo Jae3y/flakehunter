@@ -1,0 +1,10 @@
+# FlakeHunter pinned dependencies.
+# Phase 0 needs only a test runner. The Anthropic SDK is added at Phase 2,
+# when the first LLM call exists -- not before.
+#
+# Transitive dependencies of pytest are pinned explicitly so that a clean
+# clone resolves to byte-identical versions regardless of when it is built.
+iniconfig==2.0.0
+packaging==24.2
+pluggy==1.5.0
+pytest==8.3.4
