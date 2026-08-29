@@ -61,6 +61,7 @@ class ComparisonRow:
     agent_experiments: int
     validator_rejections: int
     agent_note: str
+    agent_revalidation_failed: bool = False
 
     @property
     def baseline_verified(self) -> bool:
@@ -179,6 +180,10 @@ def build_rows(
                     1 for v in agent.get("validations", []) if not v.get("passed", True)
                 ),
                 agent_note=note,
+                agent_revalidation_failed=bool(
+                    agent.get("revalidation")
+                    and not agent["revalidation"].get("passed", True)
+                ),
             )
         )
 
@@ -199,7 +204,14 @@ def render_table(rows: list[ComparisonRow]) -> str:
     lines = [header, "|---|---|---|---|---|---|---|---|"]
     for row in rows:
         label = row.case.replace("case_", "").replace("_", " ")
-        agent_cell = _rate(row.agent_residual) if row.agent_attempted else "-"
+        if not row.agent_attempted:
+            agent_cell = "-"
+        elif row.agent_revalidation_failed:
+            # The number is real; what it measured was not. Showing a bare
+            # 0.00% here would read as a success the validator refused.
+            agent_cell = f"{_rate(row.agent_residual)} (patch rejected)"
+        else:
+            agent_cell = _rate(row.agent_residual)
         if row.agent_attempted:
             agent_cause = "Y" if row.agent_identified else "n"
         else:
@@ -208,7 +220,10 @@ def render_table(rows: list[ComparisonRow]) -> str:
         unsound = " (unsound)" if row.baseline_sound is False else ""
         status = row.agent_status
         if row.agent_note:
-            status = f"{status} ({row.agent_note})"
+            note = row.agent_note
+            if len(note) > 58:
+                note = note[:55].rstrip() + "..."
+            status = f"{status} ({note})"
         lines.append(
             f"| {label} | `{row.root_cause}` | {_rate(row.corpus_flake_rate)} "
             f"| {_rate(row.baseline_residual)}{unsound} | {agent_cell} "
