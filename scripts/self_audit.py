@@ -137,8 +137,13 @@ def audit_case_outcomes() -> Audit:
 
 def audit_corpus_untouched() -> Audit:
     """No patch may have been applied to the corpus outside the sandbox."""
+    # Only the *code* under test matters here. `metadata.json` is written by
+    # scripts/measure_corpus.py every time a baseline is measured -- that is
+    # its documented job, done through the `recorder` service -- so flagging it
+    # would make the audit fail for anyone who simply followed the reproduction
+    # guide. Found exactly that way, in a clean-clone test of REPRODUCTION.md.
     try:
-        dirty = subprocess.run(
+        changed = subprocess.run(
             ["git", "status", "--porcelain", "--", "corpus/"],
             cwd=REPO_ROOT,
             capture_output=True,
@@ -147,6 +152,12 @@ def audit_corpus_untouched() -> Audit:
         ).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         return Audit("corpus unmodified by any patch", False, f"git unavailable: {exc}")
+
+    code_changes, measurement_changes = [], []
+    for line in changed.splitlines():
+        path = line[3:].strip().strip('"')
+        (measurement_changes if path.endswith("metadata.json") else code_changes).append(path)
+    dirty = "; ".join(code_changes)
 
     approval = REPO_ROOT / "results" / "pending_approval"
     packages = sorted(approval.glob("case_*")) if approval.exists() else []
@@ -162,11 +173,16 @@ def audit_corpus_untouched() -> Audit:
         else:
             live.append(package.name)
 
-    detail = f"corpus/ clean against HEAD; {len(live)} awaiting approval: {live}"
+    detail = f"no corpus code modified; {len(live)} awaiting approval: {live}"
     if rejected:
         detail += f"; {len(rejected)} rejected on re-validation (do not apply): {rejected}"
+    if measurement_changes:
+        detail += (
+            f"; {len(measurement_changes)} metadata.json file(s) carry re-measured "
+            "baselines, which is expected"
+        )
     if dirty:
-        detail = "corpus/ has uncommitted changes: " + dirty.replace(chr(10), "; ")
+        detail = "CORPUS CODE MODIFIED: " + dirty
 
     return Audit("corpus unmodified by any patch", not dirty, detail)
 

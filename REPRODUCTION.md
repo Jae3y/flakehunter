@@ -3,6 +3,16 @@
 Every command below was run on the reference machine and its runtime measured,
 not estimated. Docker is the only host requirement — no Python, no virtualenv.
 
+**This guide was tested by following it.** The repository was cloned to a clean
+directory and every step executed in order, with no prior knowledge assumed.
+Three corrections came out of that and are already applied: the test count and
+runtimes were wrong, the corpus-baseline timing needed a range rather than a
+point, and `self_audit.py` reported a false failure after step 3 because it
+treated re-measured `metadata.json` files as though a patch had been applied.
+Steps 4 and 5 (the two LLM arms) could not be executed in the clean clone
+because the free-tier daily quota was exhausted; their commands are unchanged
+from the ones used throughout this project.
+
 ## Environment
 
 | | |
@@ -88,8 +98,10 @@ docker compose build
 docker compose run --rm flakehunter python -m pytest tests -q
 ```
 
-**82 tests, ~90 s.** Slower than a pure unit suite because several drive the
-sandbox and the full agent loop end to end against a scripted model.
+**92 tests, 90–200 s.** Slower than a pure unit suite because several drive
+the sandbox and the full agent loop end to end against a scripted model, so the
+wall clock moves with machine load. Measured 90 s on an idle machine and 200 s
+in a clean-clone run under load.
 
 ```bash
 docker compose run --rm flakehunter python scripts/phase0_gate.py
@@ -117,7 +129,7 @@ model that actually generates.
 
 ---
 
-## 3. Measure the corpus baseline — 383 s, 0 requests
+## 3. Measure the corpus baseline — 383–552 s, 0 requests
 
 ```bash
 docker compose run --rm recorder python scripts/measure_corpus.py --runs 500
@@ -188,6 +200,11 @@ D-018).
 docker compose run --rm flakehunter python scripts/revalidate_pending.py --stress
 ```
 
+**Use `--stress`.** Without it the run is structural-only and *misses case
+07's mask* — a clean-clone run without the flag reported `legitimate 11/12`
+instead of `10/12`, because the behavioural check is exactly what catches that
+patch. The flag costs about 12 minutes.
+
 Re-runs the **current** validator over every previously accepted patch, both
 arms. Necessary because the validator gained checks mid-project, and acceptance
 under a weaker rule set is not evidence. Writes a `REVALIDATION.md` — carrying
@@ -243,11 +260,11 @@ repo of why 500 clean runs is not proof.
 | Step | Wall clock | Requests |
 |---|---|---|
 | `docker compose build` (cold) | 25 s | 0 |
-| Test suite (82) | 90 s | 0 |
+| Test suite (92) | 90–200 s | 0 |
 | Phase 0 gate | 2 min | 0 |
 | Isolation probe | 10 s | 0 |
 | LLM provider check | 30 s | 2–8 |
-| Corpus baseline, 12 × 500 runs | 383 s | 0 |
+| Corpus baseline, 12 × 500 runs | 383–552 s | 0 |
 | Baseline arm, 12 cases | 21.4 min | 12 |
 | Baseline re-run, 2 cases | 3.5 min | 2 |
 | Agent arm, per case | 5–17 min | 2–6 |
