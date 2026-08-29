@@ -80,6 +80,44 @@ metadata, and neither the agent nor the evaluation uses it.
 
 ---
 
+## 3a. Budget your API quota before you start
+
+**This is the constraint that will stop you, not CPU.** The Gemini free tier
+allows **20 requests per day, per model, per project**:
+
+```
+quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier
+quotaValue: 20
+```
+
+Request counts for a full evaluation:
+
+| Step | Requests |
+|---|---|
+| `check_llm.py` | 2–8 (probes models until one generates) |
+| Baseline arm | 1 per case = 12 |
+| Agent arm | ~3–5 per case = 36–60 for twelve cases |
+| **Total** | **~50–80** |
+
+That is three to four days of free-tier allowance on a single model. Options:
+
+- **Move off the free tier.** Simplest, and what a full run needs.
+- **Split across days**, same model both arms. `run_baseline.py` merges results
+  per case and `run_agent.py` writes after every case, so both resume cleanly.
+- **Run a subset**, both arms, same model. Do *not* run the baseline on one
+  model and the agent on another to dodge the cap — that compares the models
+  rather than the methods and invalidates the result.
+
+The client distinguishes the two 429s: a per-minute rate limit's `retryDelay`
+is honoured up to 90 s, while a per-day quota raises immediately with the quota
+id rather than sleeping through retries it cannot outlast.
+
+Note also that a model can appear in `ListModels` and still return 404 on
+`generateContent` — `gemini-2.5-flash` does, for new keys. `check_llm.py` calls
+candidates rather than trusting the listing, which is why it costs requests.
+
+---
+
 ## 4. Run the two arms
 
 ```bash
