@@ -1,7 +1,7 @@
 {
   "case": "case_05_hash_iteration_order",
   "model": "gemini-3.6-flash",
-  "updated_at": "seeded-from-prior-run",
+  "updated_at": "2026-08-29T18:47:12Z",
   "confirm": {
     "case": "case_05_hash_iteration_order",
     "runs": 200,
@@ -23,7 +23,7 @@
     "strategy": "spawn",
     "env_overrides": {}
   },
-  "rounds_completed": 1,
+  "rounds_completed": 2,
   "hypotheses": [
     {
       "round": 1,
@@ -49,6 +49,19 @@
           "root_cause_class": "race_condition",
           "reasoning": "Concurrent test execution across 8 workers might cause inter-process or multi-thread state corruption if `SOURCES` or global state is modified concurrently without locking.",
           "discriminating_prediction": "Running the test suite sequentially on a single worker will completely eliminate failures if a race condition is responsible, but will fail to eliminate failures under set iteration randomization.",
+          "status": "proposed",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "items": [
+        {
+          "id": "H1",
+          "root_cause_class": "test_order_dependency",
+          "reasoning": "The module-level set SOURCES stores Source instances hashed by object memory address (id()). Tests executing earlier in the same worker process allocate heap objects, changing the initial memory layout and altering the set iteration order such that the legacy staging source occasionally iterates first.",
+          "discriminating_prediction": "Running the test in isolation will remove variations in heap layout caused by prior tests, producing a stable iteration order and eliminating the non-deterministic failures.",
           "status": "proposed",
           "evidence": []
         }
@@ -93,14 +106,58 @@
           "PYTHONHASHSEED": "0"
         }
       }
+    },
+    {
+      "experiment": {
+        "manipulation": "isolate_test",
+        "parameter": "test_config.py::test_environment_resolves_to_production",
+        "targets_hypothesis": "H1",
+        "rationale": " Isolating the test ensures no other test files execute beforehand in the same worker, revealing whether preceding tests alter heap allocation and set iteration order.",
+        "predicted_effect": "eliminated"
+      },
+      "baseline_rate": 0.07,
+      "observed_rate": 0.1667,
+      "actual_effect": "increased",
+      "matches_prediction": false,
+      "unsupported": false,
+      "note": "",
+      "verification": {
+        "case": "case_05_hash_iteration_order@isolate_test",
+        "runs": 150,
+        "failures": 25,
+        "errors": 0,
+        "flake_rate": 0.1667,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 125,
+          "fail": 25
+        },
+        "signatures": {
+          "pass": 125,
+          "AssertionError at test_config.py:19: assert <str> == <str>": 25
+        },
+        "distinct_signatures": 1,
+        "wall_s": 13.45,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      }
     }
   ],
   "eliminated": [
     "hash_iteration_order"
   ],
   "history": [
-    "pin_hash_seed(0) -> predicted eliminated, observed increased (7.0% -> 47.3%)"
+    "pin_hash_seed(0) -> predicted eliminated, observed increased (7.0% -> 47.3%)",
+    "isolate_test(test_config.py::test_environment_resolves_to_production) -> expects eliminated; observed increased (7.0% -> 16.7%) => ELIMINATES hypothesis H1"
   ],
-  "seen_signatures": [],
+  "seen_signatures": [
+    [
+      "test_order_dependency",
+      [
+        "hash_iteration_order"
+      ]
+    ]
+  ],
   "note": "seeded from a run cut off by quota"
 }

@@ -504,3 +504,79 @@ kill both surface as pytest exit 2.
 A one-line check would have said "line 16: invalid syntax" immediately.
 
 **Revisit if.** Nothing pending. Cheap, deterministic, and it names its cause.
+
+---
+
+## D-018 — Checkpoint each case, and refuse to inherit another model's reasoning
+
+**Tension.** A case cut off by quota mid-loop had established real things — an
+empirical flake rate, hypotheses ruled out by experiment — and threw all of it
+away. The next attempt re-spent requests rediscovering them. On a 20-request
+daily budget that is the difference between finishing a case and not.
+
+The obvious implementation restores everything. The question is whether
+everything *should* be restored.
+
+**Chosen.** Checkpoint after every round: CONFIRM measurement, hypotheses,
+experiments, eliminated classes, history. On resume, skip CONFIRM entirely and
+start from what is already ruled out. But restore **LLM-derived state only when
+the checkpoint was written by the same model**.
+
+**Why.** The two kinds of state are not alike. A flake rate and an experiment
+outcome are properties of the code: 23 failures in 200 runs is 23 failures in
+200 runs regardless of which model asked for the measurement. A hypothesis is a
+property of the model that proposed it.
+
+Letting a run on one model inherit another's reasoning would make the agent arm
+a blend of two models while the baseline is one, which is exactly the confound
+D-013 and D-015 exist to prevent — and it would arrive silently, through a
+cache, rather than as a visible choice. So `CaseCheckpoint.from_dict` drops
+hypotheses and experiment designs on a model mismatch, keeps the CONFIRM
+measurement, and records why in the checkpoint's note.
+
+This bit immediately: case 07 and case 11 had rounds recorded against
+`gemini-3.5-flash`. Their reasoning was discarded and only their CONFIRM
+measurements seeded.
+
+A round also only counts as completed if its **experiment actually ran**. A
+round that produced hypotheses and then died to quota has established nothing —
+an unrun experiment is not evidence — so cases 02, 03 and 04 seeded with
+`rounds_completed=0` despite having hypotheses on record.
+
+**Revisit if.** Checkpoints start outliving corpus changes. A checkpoint is
+keyed on case name, so editing a case would leave a stale CONFIRM measurement
+describing code that no longer exists. Nothing currently invalidates them; a
+content hash of the case would.
+
+---
+
+## D-019 — Merge hypothesis generation and experiment design into one request
+
+**Tension.** They were two calls: propose ranked candidates, then choose the
+manipulation that separates them. Splitting them gives the model a dedicated
+pass to think about experiment choice. Merging them saves a third of every
+round's request cost, which on a 20-request budget is the difference between
+three cases a day and four or five.
+
+**Chosen.** One call per round returning both, via `ROUND_SCHEMA`. Per-round
+cost drops from 2 requests to 1; a case that resolves in one round now costs 2
+requests (round + patch) instead of 3.
+
+**Why.** The split was not buying the deliberation it appeared to. The
+hypothesis schema already requires a `discriminating_prediction` for every
+candidate — the model was *already* being made to reason about what would
+separate them. The second call then asked it to choose a separator from a
+summary of reasoning it had just produced and no longer had in front of it.
+Merging lets the choice be made with the reasoning still in hand, which is
+arguably the better arrangement independent of cost.
+
+The risk is that a single response has less room to deliberate on the
+experiment specifically. Mitigated by keeping the experiment's full structure
+in the schema — manipulation, parameter, target, rationale, predicted effect —
+so it is still a considered object rather than an afterthought, and by keeping
+the node-id list and manipulation catalogue in the prompt.
+
+**Revisit if.** Experiment quality drops measurably — the signal would be a
+rise in experiments whose prediction matches no matter what, or a return of
+invented node ids. Both are visible in the trajectory. `design_experiment` and
+`propose_hypotheses` remain in the codebase and the split can be restored.
