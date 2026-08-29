@@ -55,6 +55,18 @@ target zero. Cost is in tokens, not dollars (`DECISIONS.md` D-007).
 `(unsound)` marks a verification in which runs errored rather than ran, so its
 zero means nothing. Agent columns show `-` where the case was never attempted.
 
+## Coverage
+
+The baseline arm covers **all 12 cases**. The agent arm does not: the API runs
+on the Google AI Studio free tier at **20 requests per day per model**, and a
+case costs 2-6. Cases marked `quota` are checkpointed mid-loop
+(`results/checkpoints/`) and resume from their established evidence rather than
+restarting.
+
+The claimed-versus-verified finding below is measured entirely from the
+baseline arm, the 500-run verifications and the validator. It does not depend
+on agent coverage.
+
 {render_summary(rows, meta)}
 
 ## The comparison that matters

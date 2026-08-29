@@ -148,7 +148,28 @@ HEAD by the self-audit.
 
 ---
 
-## Results
+## Results, and what they cover
+
+**The baseline arm is complete: all 12 cases.** Claimed 12/12 → verified 10 →
+legitimate 10/12.
+
+**The agent arm is not.** The API runs on the Google AI Studio free tier —
+**20 requests per day per model** — and a case costs 2–6 requests. One case is
+complete (case 12, awaiting approval); nine are checkpointed mid-loop and
+resume where they stopped; case 01 is excluded for runtime (D-012). Attempts
+were ordered to spread across root-cause classes rather than numerically, so
+partial coverage shows breadth rather than five variants of one failure type.
+
+**The headline finding does not depend on the agent arm.** Claimed → verified →
+legitimate is measured from the baseline's twelve patches, the 500-run
+verifications, and the anti-cheat validator. None of those three need the agent
+to have run. Case 01's patch that never compiled and case 07's mask — 0.80% at
+normal load, 24.5% under oversubscription — are anchors of the baseline's own
+record.
+
+What incomplete agent coverage *does* cost is the other direction of the
+comparison: how often the loop reaches a verified fix where the baseline does
+not. One case is not a rate.
 
 Full table in `results/RESULTS.md`; regenerate with `scripts/run_compare.py`.
 Session narrative in `SESSION_LOG.md`. Per-iteration measurements in
