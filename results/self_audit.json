@@ -12,7 +12,7 @@
   {
     "name": "every case PENDING or UNRESOLVED",
     "passed": true,
-    "evidence": "8 ERROR"
+    "evidence": "8 ERROR, 1 UNRESOLVED"
   },
   {
     "name": "corpus unmodified by any patch",

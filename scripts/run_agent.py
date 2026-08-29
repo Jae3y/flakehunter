@@ -28,6 +28,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.agent.orchestrator import AgentConfig, run_agent_case  # noqa: E402
+from src.agent.results_store import save_agent_results  # noqa: E402
 from src.harness.protocol import runs_for, workers_for  # noqa: E402
 from src.harness.runner import TestRunner  # noqa: E402
 from src.llm.client import GeminiClient  # noqa: E402
@@ -124,20 +125,16 @@ def main() -> int:
         print(f"  tokens   : {outcome.prompt_tokens} in / {outcome.output_tokens} out")
         print(f"  wall     : {outcome.wall_s / 60:.1f} min")
 
-        # Written after every case, so an interrupted run still leaves results.
-        (REPO_ROOT / "results" / "agent_results.json").write_text(
-            json.dumps(
-                {
-                    "measured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    "model": client.model,
-                    "trace_run_id": run_id,
-                    "usage": client.usage_summary(),
-                    "results": [o.to_dict() for o in outcomes],
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
+        # Written after every case, so an interrupted run still leaves
+        # results -- and merged, so it cannot leave *worse* results than it
+        # found. A quota-only run once overwrote a case's evidence; see
+        # DECISIONS.md D-022.
+        save_agent_results(
+            REPO_ROOT / "results" / "agent_results.json",
+            [o.to_dict() for o in outcomes],
+            client.model,
+            run_id,
+            client.usage_summary(),
         )
 
     elapsed = time.perf_counter() - started

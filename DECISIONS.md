@@ -674,3 +674,49 @@ checkpoints") is a property of the current code, not a guarantee; if the
 baseline or `measure_corpus.py` ever gained checkpoint awareness, the blast
 radius of a bad checkpoint would widen and this entry would need re-deriving
 rather than citing.
+
+---
+
+## D-022 — Agent results merge by evidence depth; a shallower run can never overwrite
+
+**Tension.** `run_agent.py` wrote `results: [o.to_dict() for o in outcomes]` —
+this invocation's cases and nothing else. That is the simplest correct-looking
+thing, and it is wrong in two ways at once: cases absent from the run vanish
+entirely, and cases present overwrite whatever was there regardless of whether
+the new record knows anything.
+
+It cost real evidence. A run in which every case died on API quota replaced a
+case_07 record carrying two hypothesis rounds, two experiments and three
+validator rejections with a bare `ERROR`. It was restored by hand from an
+archive, which is not a fix — the same run tomorrow would do it again.
+
+**Chosen.** `src/agent/results_store.py`. Merge existing and incoming per case,
+and **replace only when the incoming record has equal or greater evidence
+depth**. Depth is ordered: terminal status, then whether a 500-run verification
+exists, then experiments run, hypothesis rounds, validator verdicts.
+
+**Why.** The rule is one-directional on purpose. A quota failure establishes
+nothing, ranks bottom, and therefore cannot displace anything — no special case
+for quota is needed, because "knows nothing" is already the bottom of the
+ordering. A completed run outranks an interrupted one and replaces it, so the
+rule does not freeze progress. Ties go to the newer record, so a genuine re-run
+that reaches the same depth still wins.
+
+Depth leads with **terminal status rather than raw counts**. A case that
+reached PENDING in one round is a better record than one that flailed through
+five and died; ranking by experiment count alone would get that backwards.
+
+A refused overwrite is not silent — it appends to `superseded_attempts` on the
+surviving record, so a quota-blocked re-run remains visible instead of leaving
+the file looking untouched.
+
+Ten tests in `tests/test_results_store.py` pin this, including the exact
+regression: a run where every case errors on quota leaves an existing
+two-experiment record intact.
+
+**Revisit if.** A record needs *demoting* — as happened when the hardened
+validator invalidated case_07's accepted patch. That is a deliberate
+invalidation, not a shallower attempt, and it belongs in
+`revalidate_pending.py` where the reason is recorded. If demotion ever moves
+into the agent loop, this rule would block it and would need an explicit
+override rather than a loosened comparison.
