@@ -390,3 +390,90 @@ The consequences, and they are narrower than they look:
 Recorded rather than smoothed over, because a table of absolute flake rates
 that silently depended on what else the laptop was doing would be the exact
 failure this project exists to attack.
+
+---
+
+## 004 — Phase 2: the one-shot baseline, and a result that complicates the thesis
+
+**Date:** 2026-08-29 (unattended run)
+**Model:** `gemini-3.6-flash`, both arms
+**Status:** complete for 11 of 12 cases
+
+### What it does
+
+One LLM call per case. Same model, same complete view of the project, same
+root-cause taxonomy, same rules about what a fix must be — all of it shared
+with the agent through `src/llm/prompts.py`, so the two arms cannot drift
+apart. The one thing the baseline does not get is the repeat-execution
+harness. That absence is the independent variable.
+
+### Results — 500-run verification per case, locked protocol
+
+| Case | Cause identified | Residual after fix | Sound | Fixed |
+|---|---|---|---|---|
+| 01 race condition | yes | 0.0% | **no** | no |
+| 02 test-order dependency | yes | 0.0% | yes | **yes** |
+| 03 port collision | yes | 0.0% | yes | **yes** |
+| 04 clock dependence | yes | 0.0% | yes | **yes** |
+| 05 set iteration order | yes | 0.0% | yes | **yes** |
+| 06 unseeded randomness | yes | 0.0% | yes | **yes** |
+| 07 network timeout | yes | **0.8%** | yes | no |
+| 08 tempfile collision | yes | 0.0% | yes | **yes** |
+| 09 float tolerance | yes | 0.0% | yes | **yes** |
+| 10 async ordering | yes | 0.0% | yes | **yes** |
+| 11 cache leak | yes | 0.0% | yes | **yes** |
+| 12 masking trap | yes | 0.0% | yes | **yes** |
+
+**Root cause identified: 12/12. Fixed: 10/12.**
+79,455 tokens (13,616 prompt / 65,839 output). 21.4 min plus a 3.5 min re-run.
+
+### The uncomfortable result
+
+**The baseline got case 12 right.** Given the taxonomy and an explicit rule
+that widening a timing window is not a fix, it produced exactly the correct
+repair — build the index into a local dict, assign it, and only then set
+`ready`. Not a sleep. Not a retry. The trap case did not trap it.
+
+This matters, and burying it would be dishonest. On this corpus, a single
+call to a current flash-tier model with a good prompt fixes 10 of 12 cases.
+The gap the agent has to justify is narrower than the project's premise
+assumed.
+
+What the baseline still cannot do is **know which 10**. It reported `high`
+confidence on case 07, whose fix left the test failing 0.8% of the time — four
+failures in 500 runs that one execution would never have surfaced. The
+baseline cannot tell that case apart from the eleven others it was equally
+confident about. Its value proposition is "usually right, never sure"; the
+harness is what converts that into "sure".
+
+That reframes the comparison from *can it fix them* to *can it tell whether it
+fixed them* — which is closer to the real bottleneck anyway, since the whole
+reason flaky tests get rerun instead of fixed is that nobody can confirm a fix
+without running it many times.
+
+### Two harness bugs, both caught by measurement rather than review
+
+**Truncated replies.** Cases 02 and 04 failed with `Unterminated string
+starting at line 8 column 22`. The model was not producing malformed output —
+it ran out of room. Gemini 3.x draws reasoning tokens from the same
+`maxOutputTokens` budget as the answer, and 8,192 was spent almost entirely on
+thinking, leaving ~478 characters of JSON. Raised to 32,768 with a retry at
+double the budget on a `MAX_TOKENS` finish. Both cases then fixed cleanly.
+
+**A false pass.** Case 01's patch — adding a lock, the *correct* fix — reported
+**0/500 failures with 500 error runs**. `RLIMIT_CPU` is summed across threads,
+so eight threads hit the flat 10-second ceiling in about two seconds of wall
+time and pytest exited 2 before any assertion ran. Zero failures. 0.00%
+residual. A perfect-looking fix in which nothing executed.
+
+It was caught only because `ERROR` is a distinct outcome from `FAIL` and
+`is_sound` is consulted before a fix counts — a Phase 0 decision that had, until
+this moment, never earned its keep. Had errors been folded into the flake rate,
+case 01 would have entered the results table as a clean baseline win.
+
+### Case 01 excluded from both arms
+
+Once fixed, case 01 takes roughly four seconds per run — the lock serialises
+400,000 increments across eight threads — so a 500-run serial verification
+exceeds half an hour. It was cut from both arms rather than measured in one,
+keeping the comparison symmetric. See `DECISIONS.md` D-012 for the remedy.

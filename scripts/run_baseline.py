@@ -180,7 +180,18 @@ def main() -> int:
                 "runs_per_case": 0 if args.dry_run else (args.runs or "locked per-case protocol"),
                 "workers": "locked per-case protocol",
                 "wall_clock_s": round(elapsed, 1),
-                "usage": usage,
+                # Summed from the merged rows rather than from this
+                # invocation's client: the file may combine several runs,
+                # and one run's usage would understate the total.
+                "usage": {
+                    "calls": sum(1 for r in results if "error" not in r),
+                    "prompt_tokens": sum(
+                        (r.get("tokens") or {}).get("prompt", 0) for r in results
+                    ),
+                    "output_tokens": sum(
+                        (r.get("tokens") or {}).get("output", 0) for r in results
+                    ),
+                },
                 "results": results,
             },
             indent=2,
