@@ -21,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.baseline.one_shot import run_baseline_case  # noqa: E402
+from src.harness.protocol import runs_for, workers_for  # noqa: E402
 from src.harness.runner import TestRunner  # noqa: E402
 from src.llm.client import GeminiClient, LLMError  # noqa: E402
 from src.sandbox.executor import SandboxExecutor, assert_sandboxed  # noqa: E402
@@ -46,8 +47,12 @@ def discover_cases(only: list[str] | None) -> list[Path]:
 def main() -> int:
     """Run the baseline over every selected case."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runs", type=int, default=500)
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=None,
+        help="override the locked verification run count",
+    )
     parser.add_argument("--cases", nargs="*", default=None)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -68,13 +73,17 @@ def main() -> int:
     started = time.perf_counter()
     for case in cases:
         try:
+            # Both arms read the same protocol module, so they cannot be
+            # measured under different settings.
+            workers = workers_for(case.name)
+            verify_runs = args.runs or runs_for(case.name, "verify")
             result = run_baseline_case(
                 case,
                 client,
                 executor,
                 runner,
-                runs=0 if args.dry_run else args.runs,
-                workers=args.workers,
+                runs=0 if args.dry_run else verify_runs,
+                workers=workers,
             )
         except LLMError as exc:
             print(f"\n  {case.name}: LLM CALL FAILED -- {exc}")
@@ -102,6 +111,20 @@ def main() -> int:
             f"    tokens   : {result.prompt_tokens} in / {result.output_tokens} out"
         )
         results.append(result.to_dict())
+
+        # Written after every case, so an interrupted run still leaves results.
+        (REPO_ROOT / "results" / "baseline_partial.json").write_text(
+            json.dumps(
+                {
+                    "note": "partial; written after each case",
+                    "model": client.model,
+                    "usage": client.usage_summary(),
+                    "results": results,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     elapsed = time.perf_counter() - started
     usage = client.usage_summary()
@@ -138,8 +161,8 @@ def main() -> int:
             {
                 "measured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "model": client.model,
-                "runs_per_case": 0 if args.dry_run else args.runs,
-                "workers": args.workers,
+                "runs_per_case": 0 if args.dry_run else (args.runs or "locked per-case protocol"),
+                "workers": "locked per-case protocol",
                 "wall_clock_s": round(elapsed, 1),
                 "usage": usage,
                 "results": results,
