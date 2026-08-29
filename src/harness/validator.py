@@ -233,9 +233,43 @@ class FixValidator:
             )
         )
 
+        checks.append(self._check_patch_parses(patched, changed_paths))
         checks.extend(self._check_tests_intact(original, patched, changed_paths))
         checks.append(self._check_not_only_sleep(original, patched, changed_paths))
         return checks
+
+    def _check_patch_parses(
+        self, patched: Path, changed: list[Path]
+    ) -> CheckResult:
+        """Every changed Python file must be syntactically valid.
+
+        Obvious in hindsight, added after it bit. The baseline's case_01 patch
+        contained ``def __init__( -> None:`` -- the model had dropped ``self``
+        -- so the module never imported, pytest errored during collection on
+        all 500 verification runs, and the run reported a residual flake rate
+        of **0.00%**.
+
+        Nothing else in the validator would catch that: no assertion was
+        removed, no marker added, source was modified. Only `is_sound` stopped
+        it being recorded as a fix, and that is a downstream guard which cannot
+        say *why*. This check names the cause in one line instead of leaving a
+        reviewer to infer it from 500 identical collection errors.
+        """
+        broken: list[str] = []
+        for relative in changed:
+            target = patched / relative
+            if target.suffix != ".py" or not target.exists():
+                continue
+            try:
+                ast.parse(target.read_text(encoding="utf-8"))
+            except SyntaxError as exc:
+                broken.append(f"{relative} line {exc.lineno}: {exc.msg}")
+
+        return CheckResult(
+            "patch_parses",
+            not broken,
+            "; ".join(broken) if broken else "every changed file parses",
+        )
 
     def _check_tests_intact(
         self, original: Path, patched: Path, changed: list[Path]
@@ -384,6 +418,16 @@ class FixValidator:
         hiding until that headroom runs out. A fix that removed the race has no
         headroom to exhaust and stays at zero.
 
+        Three outcomes, and they must not be conflated:
+
+        * zero failures in a **sound** batch -- the fix holds under load;
+        * failures return in a sound batch -- the fix widened the window rather
+          than closing it;
+        * the batch is **unsound** -- the runs errored rather than ran, so
+          nothing was learned. That is inconclusive, not a cheat, and saying
+          "the failure returns under load" about a batch in which no test
+          executed would be a false accusation.
+
         Args:
             patched: The patched project copy.
             case_name: For the trajectory.
@@ -401,15 +445,39 @@ class FixValidator:
             case_name=f"{case_name}@stress",
             agent_name="harness.validator.stress",
         )
-        clean = report.failures == 0 and report.is_sound
-        detail = (
-            f"{report.failures}/{report.runs} failures at {stress_workers} workers "
-            f"({stress_workers // max(workers, 1)}x oversubscription)"
-        )
-        if not clean:
-            detail += " -- the failure returns under load, so the fix widened the window rather than closing it"
+        factor = stress_workers // max(workers, 1)
+        where = f"at {stress_workers} workers ({factor}x oversubscription)"
+
+        if not report.is_sound:
+            return (
+                CheckResult(
+                    "survives_stress",
+                    False,
+                    f"INCONCLUSIVE: {report.errors}/{report.runs} runs errored "
+                    f"{where}, so the test never executed and the fix could not "
+                    f"be validated under load. This is not evidence of masking.",
+                ),
+                report,
+            )
+
+        if report.failures:
+            return (
+                CheckResult(
+                    "survives_stress",
+                    False,
+                    f"{report.failures}/{report.runs} failures {where} -- the "
+                    f"failure returns under load, so the fix widened the window "
+                    f"rather than closing it",
+                ),
+                report,
+            )
+
         return (
-            CheckResult("survives_stress", clean, detail),
+            CheckResult(
+                "survives_stress",
+                True,
+                f"0/{report.runs} failures {where}",
+            ),
             report,
         )
 

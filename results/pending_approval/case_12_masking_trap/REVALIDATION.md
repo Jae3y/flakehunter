@@ -1,3 +1,3 @@
-# Re-validated 20260829T073848Z
+# Re-validated 20260829T080546Z
 
-Still passes every current check.
+Passes every current check, including `test_conditions_unchanged`.

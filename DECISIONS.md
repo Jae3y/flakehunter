@@ -250,11 +250,26 @@ summed across every thread in the process.
 expose `FLAKEHUNTER_RUN_CPU_S` to override it.
 
 **Why.** Found by a false result, not by inspection. The baseline's patch for
-case 01 -- adding a lock to the shared counter, which is the *correct* fix --
-produced **500 `error` runs and zero failures**. An eight-thread case burns CPU
-seconds roughly eight times faster than wall-clock seconds, so the newly
-serialised counter hit the 10-second CPU ceiling in about two seconds of wall
-time, took SIGXCPU, and exited pytest with code 2 before any assertion ran.
+case 01 produced **500 `error` runs and zero failures** -- pytest exit 2 on
+every run.
+
+> **Correction (later the same session).** The reasoning below about
+> `RLIMIT_CPU` was **the wrong diagnosis**. I inferred it from the exit code
+> without reading the captured stderr. The actual cause was that the patch did
+> not compile: it contained `def __init__( -> None:`, the model having dropped
+> `self`, so the module never imported and pytest errored during collection.
+> Raising the CPU budget changed nothing, which is what finally prompted
+> reading the stderr. See D-017 and the `patch_parses` check.
+>
+> The change itself still stands on its own reasoning -- CPU time genuinely is
+> summed across threads, and a flat 10s against a 15s wall clock genuinely is
+> inconsistent for a multi-threaded case -- but it was made for a reason that
+> turned out not to apply, and the honest record says so.
+
+The original reasoning, left as written: an eight-thread case burns CPU seconds
+roughly eight times faster than wall-clock seconds, so a newly serialised
+counter could hit a 10-second CPU ceiling in about two seconds of wall time,
+take SIGXCPU, and exit pytest with code 2 before any assertion ran.
 
 Zero failures. A residual flake rate of 0.00%. A perfect-looking fix in which
 nothing executed.
@@ -421,3 +436,71 @@ lying to it. Either answer is worth having, and the second is worth more.
 **Revisit if.** Nothing pending. The archived 3.5-flash run stays on disk as a
 record of what was attempted under the quota constraint, and because its
 case 07 trajectory is the evidence for D-014.
+
+
+---
+
+## D-016 — Re-validate every previously accepted patch, not just the one that failed
+
+**Tension.** The `test_conditions_unchanged` check was added because one patch
+defeated the validator. The minimal response is to re-check that patch. The
+maximal one is to re-check everything ever accepted, which costs CPU and might
+turn up nothing.
+
+**Chosen.** Re-check every patch accepted this session -- both arms, 14 patches
+-- against the current validator, with the stress pass on.
+
+**Why.** The blind spot was not specific to case 07. `test_conditions_unchanged`
+did not exist, so *no* patch accepted before it was written had ever been
+checked for editing test conditions. "It passed the validator" means "it passed
+the validator as it stood that day", and acceptance under a weaker rule set is
+not evidence. Leaving the others unchecked would have meant reporting a number
+whose basis I already knew had a hole in it.
+
+It also cost nothing to be wrong about: if the re-check had turned up nothing,
+the result would still have been worth having, because it would have bounded
+the blast radius of the bug rather than leaving it open.
+
+It found two more problems, both in the arm nobody had validated at all:
+
+| Arm | Case | Verdict | Cause |
+|---|---|---|---|
+| agent | 07 | REJECTED | `test_conditions_unchanged` |
+| agent | 12 | valid | — |
+| baseline | 01 | REJECTED | `patch_parses` -- the patch never compiled |
+| baseline | 07 | REJECTED | `survives_stress` -- 49/200 failures under load |
+| baseline | other 10 | valid | — |
+
+**Revisit if.** The validator gains another check. The rule this establishes is
+that adding a check means re-running it over everything already accepted, and
+`scripts/revalidate_pending.py` exists so that is one command rather than a
+project.
+
+---
+
+## D-017 — The validator checks that a patch compiles
+
+**Tension.** Obvious in hindsight, and absent for most of the project. The
+argument against adding it is that a patch which does not parse will fail its
+verification anyway, so the check is redundant.
+
+**Chosen.** Added `patch_parses`, running `ast.parse` over every changed Python
+file before anything is executed.
+
+**Why.** It is not redundant, because *failing verification* and *failing
+verification for a legible reason* are different things. The baseline's case 01
+patch contained `def __init__( -> None:`. Every one of its 500 verification runs
+errored during collection, and the run reported a residual flake rate of
+**0.00%** -- the most flattering number in the table, produced by code that
+never ran.
+
+Nothing else in the validator would have caught it: no assertion was removed,
+no marker added, source was genuinely modified. Only `is_sound` stopped it
+being recorded as a fix, and `is_sound` is a downstream guard that says
+"something was wrong" without saying what. I then spent a decision entry
+(D-011) misattributing it to a CPU limit, because a syntax error and a resource
+kill both surface as pytest exit 2.
+
+A one-line check would have said "line 16: invalid syntax" immediately.
+
+**Revisit if.** Nothing pending. Cheap, deterministic, and it names its cause.

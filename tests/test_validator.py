@@ -403,3 +403,39 @@ class TestProtectsTestConditions:
         )
 
         assert check_named(verdict, "test_conditions_unchanged").passed
+
+
+class TestPatchMustParse:
+    """A patch that does not compile is not a fix.
+
+    The baseline's case_01 patch contained `def __init__( -> None:` and every
+    one of its 500 verification runs errored during collection, producing a
+    0.00% residual flake rate that meant nothing.
+    """
+
+    def test_unparseable_source_is_rejected(self, workspace) -> None:
+        original, validator, tmp_path = workspace
+        broken = ORIGINAL_SOURCE.replace(
+            "def compute(values):", "def compute( -> None:"
+        )
+        patched = patched_copy(original, tmp_path, {"app/thing.py": broken})
+
+        verdict = validator.validate(
+            "case", original, patched, ["app/thing.py"], run_stress=False
+        )
+
+        assert not verdict.passed
+        check = check_named(verdict, "patch_parses")
+        assert not check.passed
+        assert "app/thing.py" in check.detail
+
+    def test_valid_source_passes_the_parse_check(self, workspace) -> None:
+        original, validator, tmp_path = workspace
+        fixed = ORIGINAL_SOURCE.replace("total = 0", "total = 0.0")
+        patched = patched_copy(original, tmp_path, {"app/thing.py": fixed})
+
+        verdict = validator.validate(
+            "case", original, patched, ["app/thing.py"], run_stress=False
+        )
+
+        assert check_named(verdict, "patch_parses").passed

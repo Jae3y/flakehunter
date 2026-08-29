@@ -144,7 +144,7 @@ class ResourceLimits:
     """
 
     wall_clock_s: float = 15.0
-    cpu_seconds: int = 60
+    cpu_seconds: int = 120
     address_space_mb: int = 512
     max_open_files: int = 256
 
@@ -155,9 +155,14 @@ class ResourceLimits:
         return cls(
             wall_clock_s=wall_clock_s,
             # CPU time is summed across threads, so scale it with the thread
-            # budget rather than with the wall clock alone.
+            # budget rather than with the wall clock alone. Eight rather than
+            # four: the validator's stress pass deliberately oversubscribes the
+            # CPU, and an 8-thread case under contention spends far more CPU
+            # seconds per run than wall seconds. At 4x, the stress re-validation
+            # of case_01 errored on all 100 runs and reported INCONCLUSIVE --
+            # the guard was rejecting a fix for being expensive.
             cpu_seconds=int(
-                os.environ.get("FLAKEHUNTER_RUN_CPU_S", int(wall_clock_s * 4))
+                os.environ.get("FLAKEHUNTER_RUN_CPU_S", int(wall_clock_s * 8))
             ),
             address_space_mb=int(os.environ.get("FLAKEHUNTER_RUN_MEMORY_MB", 512)),
         )
