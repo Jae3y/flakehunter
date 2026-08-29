@@ -99,18 +99,33 @@ Request counts for a full evaluation:
 | Agent arm | ~3–5 per case = 36–60 for twelve cases |
 | **Total** | **~50–80** |
 
-That is three to four days of free-tier allowance on a single model. Options:
+That is three to four days of free-tier allowance on a single model.
 
-- **Move off the free tier.** Simplest, and what a full run needs.
-- **Split across days**, same model both arms. `run_baseline.py` merges results
-  per case and `run_agent.py` writes after every case, so both resume cleanly.
-- **Run a subset**, both arms, same model. Do *not* run the baseline on one
-  model and the agent on another to dodge the cap — that compares the models
-  rather than the methods and invalidates the result.
+**Enable billing on the API project.** That is what a full run needs, and it
+lifts the per-day cap entirely — verified during this project's own evaluation.
+Confirm it took effect before starting:
+
+```bash
+docker compose run --rm flakehunter python scripts/check_llm.py
+```
+
+If you are staying on the free tier, the workable options are to **split across
+days** (both `run_baseline.py` and `run_agent.py` resume cleanly — the former
+merges per case, the latter writes after every case), or to **run a subset with
+both arms on the same model**.
+
+Do *not* run the baseline on one model and the agent on another to dodge the
+cap. That compares the models rather than the methods and invalidates the
+result — see `DECISIONS.md` D-013 and D-015.
 
 The client distinguishes the two 429s: a per-minute rate limit's `retryDelay`
 is honoured up to 90 s, while a per-day quota raises immediately with the quota
 id rather than sleeping through retries it cannot outlast.
+
+Transport failures — DNS, connection resets — get a longer budget than HTTP
+errors (9 attempts, backoff capped at 60 s, ~4 minutes of tolerance). A Docker
+embedded-DNS hiccup took out five consecutive cases during this project's own
+run before that budget was raised.
 
 Note also that a model can appear in `ListModels` and still return 404 on
 `generateContent` — `gemini-2.5-flash` does, for new keys. `check_llm.py` calls
