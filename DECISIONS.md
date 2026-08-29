@@ -236,3 +236,38 @@ piping through `grep`.
 
 **Revisit if.** Nothing to revisit; recorded so the gap in wall-clock time in
 the trajectory has an explanation.
+
+---
+
+## D-011 — The CPU limit scales with the thread budget
+
+**Tension.** `RLIMIT_CPU` was a flat 10 seconds against a 15-second wall
+clock. That reads as a sane guard until you notice the two are not measured in
+the same units: the wall clock is elapsed time, `RLIMIT_CPU` is CPU seconds
+summed across every thread in the process.
+
+**Chosen.** Default `cpu_seconds` to four times the wall-clock limit, and
+expose `FLAKEHUNTER_RUN_CPU_S` to override it.
+
+**Why.** Found by a false result, not by inspection. The baseline's patch for
+case 01 -- adding a lock to the shared counter, which is the *correct* fix --
+produced **500 `error` runs and zero failures**. An eight-thread case burns CPU
+seconds roughly eight times faster than wall-clock seconds, so the newly
+serialised counter hit the 10-second CPU ceiling in about two seconds of wall
+time, took SIGXCPU, and exited pytest with code 2 before any assertion ran.
+
+Zero failures. A residual flake rate of 0.00%. A perfect-looking fix in which
+nothing executed.
+
+That it was caught rather than published is entirely down to `ERROR` being a
+distinct outcome from `FAIL`, and to `BatchReport.is_sound` being consulted
+before a fix counts. Had errors been folded into the flake rate, case 01 would
+have gone into the results table as a clean win for the baseline.
+
+The multiplier is a guard, not a licence: a genuine runaway loop still dies,
+just at 60 CPU-seconds instead of 10.
+
+**Revisit if.** A case legitimately needs more than four times its wall clock
+in CPU -- more than four busy threads sustained for the whole run -- at which
+point the limit wants setting per case in the protocol module rather than
+globally.

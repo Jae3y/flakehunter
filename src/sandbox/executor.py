@@ -130,8 +130,12 @@ class ResourceLimits:
     Attributes:
         wall_clock_s: Timeout enforced by the parent, after which the run's
             whole process group is killed.
-        cpu_seconds: ``RLIMIT_CPU``. Catches a spin loop that a wall-clock
-            timeout would also catch, but sooner and more cheaply.
+        cpu_seconds: ``RLIMIT_CPU``. Catches a spin loop sooner and more
+            cheaply than the wall clock does. Note that this budget is summed
+            across *all threads*: an 8-thread case burns CPU seconds eight
+            times faster than wall-clock seconds, so a flat value tuned for a
+            single-threaded test kills legitimate concurrent ones. Defaults to
+            a multiple of the wall clock for that reason.
         address_space_mb: ``RLIMIT_AS``. Stops a runaway allocation from
             pushing the container into the OOM killer and taking the
             orchestrator down with it.
@@ -140,15 +144,21 @@ class ResourceLimits:
     """
 
     wall_clock_s: float = 15.0
-    cpu_seconds: int = 10
+    cpu_seconds: int = 60
     address_space_mb: int = 512
     max_open_files: int = 256
 
     @classmethod
     def from_env(cls) -> "ResourceLimits":
         """Build limits from the environment, falling back to the defaults."""
+        wall_clock_s = float(os.environ.get("FLAKEHUNTER_RUN_TIMEOUT_S", 15.0))
         return cls(
-            wall_clock_s=float(os.environ.get("FLAKEHUNTER_RUN_TIMEOUT_S", 15.0)),
+            wall_clock_s=wall_clock_s,
+            # CPU time is summed across threads, so scale it with the thread
+            # budget rather than with the wall clock alone.
+            cpu_seconds=int(
+                os.environ.get("FLAKEHUNTER_RUN_CPU_S", int(wall_clock_s * 4))
+            ),
             address_space_mb=int(os.environ.get("FLAKEHUNTER_RUN_MEMORY_MB", 512)),
         )
 
