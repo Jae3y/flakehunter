@@ -7,7 +7,7 @@
   {
     "name": "decisions logged with reasoning",
     "passed": true,
-    "evidence": "21 entries, all four sections present"
+    "evidence": "22 entries, all four sections present"
   },
   {
     "name": "every case PENDING or UNRESOLVED",
@@ -17,6 +17,6 @@
   {
     "name": "corpus unmodified by any patch",
     "passed": true,
-    "evidence": "corpus/ clean against HEAD; 1 awaiting approval: ['case_12_masking_trap']"
+    "evidence": "no corpus code modified; 1 awaiting approval: ['case_12_masking_trap']"
   }
 ]

@@ -13,6 +13,30 @@ Steps 4 and 5 (the two LLM arms) could not be executed in the clean clone
 because the free-tier daily quota was exhausted; their commands are unchanged
 from the ones used throughout this project.
 
+---
+
+## ⚠ Read this before running anything
+
+**`scripts/revalidate_pending.py` MUST be run with `--stress`.**
+
+```bash
+docker compose run --rm flakehunter python scripts/revalidate_pending.py --stress
+```
+
+Without the flag the run is structural-only and **silently produces a different
+and weaker headline number**: `legitimate 11/12` instead of `10/12`. It does not
+warn you. It does not error. It just reports a number that is wrong in the
+project's favour.
+
+The reason is that case 07's patch is a *behavioural* mask — it widens a timing
+window rather than deleting an assertion — so only the stress re-verification
+catches it. Structural checks pass it happily. This was found by running the
+guide in a clean clone without the flag.
+
+The flag costs about 12 minutes. Do not skip it.
+
+---
+
 ## Environment
 
 | | |
