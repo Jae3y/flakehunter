@@ -156,6 +156,22 @@ def main() -> int:
     out = REPO_ROOT / "results" / (
         "baseline_dry_run.json" if args.dry_run else "baseline_results.json"
     )
+
+    # Merge rather than overwrite. A case re-run after a harness fix should
+    # replace only its own row -- rewriting the file with just the re-run
+    # cases would silently discard every case that already succeeded.
+    merged: list[dict] = []
+    if out.exists() and not args.dry_run:
+        try:
+            previous = json.loads(out.read_text(encoding="utf-8")).get("results", [])
+        except (json.JSONDecodeError, OSError):
+            previous = []
+        rerun = {entry.get("case") for entry in results}
+        merged = [e for e in previous if e.get("case") not in rerun]
+    merged.extend(results)
+    merged.sort(key=lambda entry: entry.get("case", ""))
+    results = merged
+
     out.write_text(
         json.dumps(
             {
