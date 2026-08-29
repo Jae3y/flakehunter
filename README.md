@@ -14,11 +14,19 @@ rational move is to click "rerun" rather than investigate. Suites accumulate
 tests everyone has agreed to ignore, and real regressions hide behind "oh,
 that one's just flaky".
 
-The reason this is hard is specific: **normal debugging assumes the bug
-reproduces on demand.** A flaky test breaks that assumption at step one. You
-cannot confirm a fix by running the test once — you have to run it many times
-and reason statistically. That is tedious enough that almost nobody does it,
-which is why the tests stay broken.
+**The bottleneck** is specific, and it is not diagnosis. Normal debugging
+assumes the bug reproduces on demand; a flaky test breaks that assumption at
+step one. You cannot confirm a fix by running the test once — you have to run
+it hundreds of times and reason statistically. That is tedious enough that
+almost nobody does it, so the fix never gets confirmed and the test stays on
+the ignore list.
+
+**Why it matters.** A suite with ignored tests is a suite that has stopped
+being a safety net. Every "just rerun it" trains the team to discount red, and
+a genuine regression arriving in that same test is indistinguishable from the
+noise everyone has agreed to skip. The cost is not the flaky test — it is the
+real failure that will one day hide behind it, plus the CI minutes and the
+attention spent re-running rather than fixing.
 
 ---
 
@@ -282,56 +290,113 @@ and the validator gained the check that would have named it in one line.
 
 ---
 
-## Failure mode
+## Primary Failure Mode
 
-**The absolute flake rates are session-local, and we can prove it.**
+**Our verification can still be fooled, and case 07 is the proof.**
+
+The architecture rests on one claim: run the test enough times and you will
+know whether the fix worked. Case 07 shows the claim is incomplete. The
+baseline's patch passed **500 runs at the normal worker count** with a residual
+of 0.80% — four failures, easily read as noise. Under 32 workers the same patch
+failed **49 out of 200: 24.5%**.
+
+The patch had not fixed the race. It had widened the timing window until the
+failure fell outside the observation. And 500 runs did not catch it, because
+**run count is only one of two sampling dimensions, and it is the one we sample
+well.**
+
+The second dimension is *stress* — how hard the fix is pushed relative to the
+headroom it bought. We sample that with a single point: 4× CPU
+oversubscription. The masking demonstration shows exactly how arbitrary that
+is:
+
+| mask | corpus workload | 80k docs | 600k docs |
+|---|---|---|---|
+| `time.sleep(0.05)` | 0% | 8% | 100% |
+| retry the assertion | 0% | **0%** | 99% |
+
+The retry survived a workload **eight times** the corpus one and only broke at
+sixty times. Had we stopped at 80k — the obvious first stress level — we would
+have certified it as a real fix and said so with 500-run evidence behind us.
+
+So the honest statement of the limit: **we catch masks whose headroom is
+smaller than the stress we happen to apply, and we do not know where that
+ceiling sits.** A fix that buys ten seconds of slack passes everything in this
+repo. The verification is strictly better than one execution and strictly worse
+than a proof.
+
+**A second escape the stress check cannot see at all.** Our own agent, on this
+same case, produced a patch that set the test fixture's service delay to `0.0`
+— deleting the condition that produces the flakiness. It passed the stress
+check because oversubscription stretches a timing *window*, and there was no
+window left to stretch. That needed a structural check
+(`test_conditions_unchanged`), added only after the patch got through. There is
+no reason to believe that was the last such gap.
+
+### Secondary: measurements are session-local
 
 Corpus rates moved between sessions with no code change — case 01 read 47%,
-20.6%, 33.4%, 18.9%, 41.2%, 52.0%. The cause was not sampling error
-(within-session overdispersion was 0.83×, at or below binomial). It was that
-**our own harness was manufacturing the phenomenon**: case 01 flaked **0.0%
-serially and 25% at 8 workers**, so its rate tracked machine load rather than
-the bug. Case 06, whose nondeterminism is intrinsic, was unmoved by any
-condition tested.
+20.6%, 33.4%, 18.9%, 41.2%, 52.0%. Not sampling error (within-session
+overdispersion was 0.83×, at or below binomial): **our own harness was
+manufacturing the phenomenon.** Case 01 flaked 0.0% serially and 25% at 8
+workers, so its rate tracked machine load rather than the bug. Two cases were
+rebuilt to be intrinsically flaky, which removed the manufactured component but
+not the host's own drift — case 07 moved 2.5% → 34.0% serial across a few
+hours, untouched.
 
-Two cases were rebuilt so their nondeterminism is intrinsic. That removed the
-manufactured component but **not** the host's own drift: case 07 moved 2.5% →
-34.0% serial across a few hours, untouched.
+This costs precision on "before" numbers, not on the primary metric: a real fix
+gives zero in any machine state.
 
-What this costs us: a "before" number is only meaningful with its session
-attached, and comparisons must be paired within a session. What it does **not**
-cost us: the primary metric. A real fix gives zero failures in any machine
-state. Machine speed changes how *often* a race is observed, not whether it
-exists.
+### Third: scope
 
-The second failure mode is scope: twelve seeded cases in one language, each
-with a single known root cause. Real suites have interacting causes, and
-nothing here has been tested against those.
+Twelve seeded cases, one language, one known root cause each. Real suites have
+interacting causes and nothing here has been tested against those. The one
+piece of evidence that this generalises is the flaky test we found in our own
+suite — which we did not plant.
 
 ---
 
-## Hot take
+## Hot Take / Insights
 
-**Confidence is not evidence, and the industry is currently shipping
-confidence.**
+**Confidence is not evidence, and the industry is shipping confidence.**
 
 Our control produced twelve patches and rated every single one `high`
-confidence. Two were wrong. It was not being reckless — it had genuinely
-reasoned its way to a correct root cause on both, and the fixes were plausible.
-It simply had no mechanism that could distinguish "I fixed it" from "I believe
-I fixed it", because it never ran anything.
+confidence. Two were wrong. It was not being reckless — it reasoned its way to
+a correct root cause on both, and both fixes were plausible enough that a
+reviewer would have merged them. It simply had no mechanism that could
+distinguish *"I fixed it"* from *"I believe I fixed it"*, because it never ran
+anything.
 
-The reflex response to that is a better model. The measurement says otherwise:
-the model was already good enough to solve 10 of 12, *including the trap case
-built specifically to fool it*. What it lacked was a way to check its own work.
-Adding one turned a system that is right 83% of the time and confident 100% of
-the time into one that reports what it actually verified — and, on case 07,
-correctly refuses to claim a fix at all.
+The reflex response is a better model. The measurement says otherwise: this
+model was already good enough to solve **10 of 12, including the trap case
+built specifically to bait it into a `sleep()`**. Capability was not the
+binding constraint. Self-knowledge was.
 
-The uncomfortable corollary is that **an agent's most valuable component may be
-the part that tells it it's wrong.** That is unglamorous, it is mostly a test
-harness and an anti-cheat validator, and it is where the actual engineering
-went.
+Three things follow, and they generalise past flaky tests:
+
+**1. A confidence score derived from the same forward pass as the answer is
+not an independent check.** It is the model's fluency reported back to you.
+Ours was perfectly calibrated to how plausible the reasoning felt and
+perfectly uncorrelated with whether the code worked. Any agent whose only
+quality signal is self-reported confidence has no quality signal.
+
+**2. The verifier has to be able to say no in a way the generator cannot argue
+with.** Ours rejected four patches across both arms — including one from its
+own agent that had already passed an earlier, weaker version of itself. That
+only worked because the verifier ran the code rather than reading it. A
+verifier built from the same model, reading the same diff, would have agreed
+with the generator, because it shares the reasoning that produced the mistake.
+
+**3. Adding a check means re-checking everything it already accepted.** When we
+hardened the validator, we re-ran it over all fourteen previously accepted
+patches; two more failed. Acceptance under a weaker rule set is not evidence,
+and a system that only applies new checks going forward is quietly carrying
+whatever the old checks missed.
+
+The uncomfortable corollary: **an agent's most valuable component may be the
+part that tells it it's wrong.** It is unglamorous — a test harness, an
+anti-cheat validator, a run counter — and it is where essentially all of the
+engineering in this project went. The model was the easy part.
 
 ---
 
