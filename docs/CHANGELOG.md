@@ -569,3 +569,101 @@ Free tier is **20 requests per day per model**. The baseline consumed
 `gemini-3.6-flash`; case_07's five rounds consumed `gemini-3.5-flash`.
 Nine cases could not be attempted. They are carried in the results table as
 explicit `NOT RUN (quota)` rows rather than dropped.
+
+---
+
+## 006 — Case 07 re-run, and a validator escape the re-run exposed
+
+**Date:** 2026-08-29 (unattended run, after billing enabled)
+**Model:** `gemini-3.6-flash` — the baseline's model, restoring the fair comparison
+
+### The case 07 retry
+
+The node-id bug (005 / D-014) had poisoned at least one of case 07's five
+rounds with manufactured evidence. Re-run from scratch with that fixed:
+
+| | First attempt | Retry |
+|---|---|---|
+| Model | `gemini-3.5-flash` | `gemini-3.6-flash` |
+| Rounds used | 5 (cap) | **2** |
+| Experiments | 5 | 2 |
+| Invalid experiments | **2** (invented node ids) | 0 |
+| Patch attempts | 3, all rejected | 2, second accepted |
+| Outcome | UNRESOLVED | 0/500 verified |
+| Wall clock | 16.8 min | 5.4 min |
+
+So the first attempt's failure **was** substantially an artefact of the bug.
+With real evidence the loop converged in two rounds instead of exhausting five.
+
+Two honest wrinkles in that result:
+
+**It eliminated the correct hypothesis on its own bad prediction.** Round 1
+proposed `network_timeout_no_retry` — the recorded root cause — and predicted
+that `serialize_execution` would eliminate the failure. Observed: 11.5% → 6.0%,
+classified *unchanged*. The prediction was simply wrong (serialising runs does
+not fix a client whose timeout is too tight), so the loop eliminated the right
+answer and moved on. Round 2 landed on `clock_dependence`, which is a
+defensible reading of a 4.75 ms service against a 5 ms deadline, but does not
+match the recorded class.
+
+**And the patch it produced was a mask.**
+
+### The validator escape
+
+The accepted patch did two things:
+
+- `app/client.py`: `TIMEOUT_S` **0.005 → 5.0**. Raising the timeout until
+  failures get rare is the masking fix this case's own `metadata.json` warns
+  about.
+- `test_client.py`: `SERVICE_WORK_S` **0.0046 → 0.0**. It deleted the service
+  delay that produces the flakiness.
+
+It passed all seven checks then in force, **including the stress
+re-verification**. That is the part worth understanding: oversubscribing the CPU
+stretches a timing window, and there was no longer a window to stretch. The
+behavioural check catches a fix that *widens* the gap; it cannot catch one that
+*removes the phenomenon*.
+
+`protected_paths` covered `conftest.py`. This fixture lived in `test_client.py`.
+
+### The fix
+
+Module-level constants in test files may not be altered or removed. They encode
+the conditions the failure appears under — a service delay, a document count,
+an arrival gap — so changing one edits the experiment rather than the code.
+Adding a new constant remains allowed.
+
+`scripts/revalidate_pending.py` re-runs the current validator over everything
+already in `results/pending_approval/`, because a patch accepted by a weaker
+validator is not trustworthy merely for sitting there. It writes a
+`REVALIDATION.md` banner into any package that no longer passes.
+
+Re-validation result:
+
+| Case | Verdict | Failing check |
+|---|---|---|
+| 07 network timeout | **NOW REJECTED** | `test_conditions_unchanged` — `SERVICE_WORK_S` was changed |
+| 12 masking trap | **STILL VALID** | — (7/7, plus 0/200 at 32 workers) |
+
+case_07's recorded status was corrected from PENDING to UNRESOLVED. Its 0/500
+verification is real and meaningless: it measured a test whose failure
+condition had been deleted.
+
+19 validator tests now pass, three covering the new check — including one
+asserting that *adding* a constant is still fine, so the rule does not
+over-fire.
+
+### What this says about the corpus
+
+Case 07 has now defeated the agent twice, for two different reasons: once on
+manufactured evidence, once by producing a mask that the validator of the day
+could not see. The baseline "fixed" it with `high` confidence at 0.80%
+residual. It is the hardest case in the set and remains **UNRESOLVED**.
+
+### Quota
+
+Billing was enabled, and three consecutive calls on `gemini-3.6-flash`
+succeeded. The daily free-tier cap was nonetheless still enforced —
+`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, limit 20 — and the run
+stopped after case 07 plus one call. Cases 02, 03, 04, 05, 06, 08, 09, 10 and
+11 have no live agent run.
