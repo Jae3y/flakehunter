@@ -1,0 +1,55 @@
+{
+  "case": "case_02_test_order_dependency",
+  "model": "gemini-3.6-flash",
+  "updated_at": "seeded-from-prior-run",
+  "confirm": {
+    "case": "case_02_test_order_dependency",
+    "runs": 200,
+    "failures": 67,
+    "errors": 0,
+    "flake_rate": 0.335,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 133,
+      "fail": 67
+    },
+    "signatures": {
+      "pass": 133,
+      "AssertionError at test_registry.py:9: unexpected plugins present: <seq>": 67
+    },
+    "distinct_signatures": 1,
+    "wall_s": 11.97,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [
+    {
+      "round": 1,
+      "items": [
+        {
+          "id": "H1",
+          "root_cause_class": "test_order_dependency",
+          "reasoning": "The module app.metrics calls register('metrics') at import time, mutating the process-global _PLUGINS list. Because conftest.py randomises test execution order via string hash values, test_metrics_plugin_registers_itself sometimes executes prior to test_registry_is_empty_until_a_plugin_is_installed, causing global state pollution.",
+          "discriminating_prediction": "Running test_metrics_plugin_registers_itself followed directly by test_registry_is_empty_until_a_plugin_is_installed in a single process will result in a 100% failure rate showing ['metrics'] present in the registry.",
+          "status": "proposed",
+          "evidence": []
+        },
+        {
+          "id": "H2",
+          "root_cause_class": "race_condition",
+          "reasoning": "Concurrent worker processes or threads executing tests in parallel access and mutate the shared _PLUGINS list without locks or isolation. If multiple tests execute simultaneously within the same memory space, reads and writes to the global list race against each other.",
+          "discriminating_prediction": "Running tests sequentially in a single worker process (-n 0) will completely eliminate the failure even when test_metrics_plugin_registers_itself executes before test_registry_is_empty_until_a_plugin_is_installed.",
+          "status": "proposed",
+          "evidence": []
+        }
+      ]
+    }
+  ],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": "seeded from a run cut off by quota"
+}

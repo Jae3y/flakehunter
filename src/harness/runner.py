@@ -198,6 +198,27 @@ class BatchReport:
         """How many different ways the test failed."""
         return len([s for s in self.signatures if s != "pass"])
 
+    @classmethod
+    def from_dict(cls, payload: dict) -> "BatchReport":
+        """Rebuild a report from its serialised form.
+
+        Used when resuming a case from a checkpoint: a CONFIRM measurement
+        costs no API requests but does cost minutes of CPU, so it is worth
+        restoring rather than repeating.
+        """
+        return cls(
+            case=payload["case"],
+            runs=payload["runs"],
+            failures=payload["failures"],
+            errors=payload.get("errors", 0),
+            outcomes=Counter(payload.get("outcomes", {})),
+            signatures=Counter(payload.get("signatures", {})),
+            wall_s=payload.get("wall_s", 0.0),
+            workers=payload.get("workers", 1),
+            strategy=payload.get("strategy", "spawn"),
+            env_overrides=payload.get("env_overrides", {}),
+        )
+
     def summary(self) -> str:
         """One-line human-readable summary."""
         parts = [

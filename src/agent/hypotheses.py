@@ -26,8 +26,10 @@ from src.llm.prompts import taxonomy_block
 
 __all__ = [
     "HYPOTHESIS_SCHEMA",
+    "ROUND_SCHEMA",
     "Hypothesis",
     "propose_hypotheses",
+    "propose_round",
 ]
 
 SYSTEM_PROMPT = """You are diagnosing a flaky test by experiment.
@@ -187,3 +189,136 @@ Here is the complete project.
     )
     payload = response.json()
     return [Hypothesis.from_dict(item) for item in payload.get("hypotheses", [])][:3]
+
+
+# --- combined round -------------------------------------------------------
+#
+# Hypothesis generation and experiment design were two calls. On a 20-request
+# daily budget that is a third of a case's cost spent re-stating context the
+# model just produced. They are merged into one.
+#
+# The merge is not purely a saving. The hypothesis schema already requires a
+# ``discriminating_prediction`` for each candidate, so the model was being made
+# to reason about what would separate them *before* being asked, in a separate
+# call, to choose the separator. Asking for both together lets the choice be
+# made with the reasoning still in hand rather than reconstructed from a
+# summary.
+
+ROUND_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "hypotheses": HYPOTHESIS_SCHEMA["properties"]["hypotheses"],
+        "experiment": {
+            "type": "object",
+            "description": (
+                "The single manipulation to run now. Choose the one whose "
+                "outcome differs most between the hypotheses above."
+            ),
+            "properties": {
+                "manipulation": {"type": "string"},
+                "parameter": {"type": "string"},
+                "targets_hypothesis": {"type": "string"},
+                "rationale": {"type": "string"},
+                "predicted_effect": {
+                    "type": "string",
+                    "enum": ["eliminated", "reduced", "unchanged", "increased"],
+                },
+            },
+            "required": [
+                "manipulation",
+                "parameter",
+                "targets_hypothesis",
+                "rationale",
+                "predicted_effect",
+            ],
+        },
+    },
+    "required": ["hypotheses", "experiment"],
+}
+
+
+def propose_round(
+    client: GeminiClient,
+    case_name: str,
+    project_source: str,
+    confirm_report: BatchReport,
+    history: list[str],
+    eliminated: list[str],
+    round_number: int,
+    manipulations: dict[str, str],
+    node_ids: list[str],
+) -> tuple[list[Hypothesis], dict[str, Any]]:
+    """Propose ranked hypotheses *and* the experiment to run, in one request.
+
+    Args:
+        client: Shared LLM client.
+        case_name: For the trajectory.
+        project_source: The rendered project.
+        confirm_report: The CONFIRM measurement.
+        history: One line per experiment already run and what it showed.
+        eliminated: Root cause classes already ruled out.
+        round_number: Which round this is, from 1.
+        manipulations: The closed experiment vocabulary, name -> description.
+        node_ids: The case's real test node ids. Supplying them stops the model
+            inventing one, which makes pytest collect nothing and produces an
+            experiment that looks like evidence and is not.
+
+    Returns:
+        The ranked hypotheses and the raw experiment payload.
+    """
+    ruled_out = (
+        "Already eliminated by experiment, do not propose again: "
+        + ", ".join(sorted(set(eliminated)))
+        if eliminated
+        else "Nothing has been eliminated yet."
+    )
+    catalogue = "\n".join(f"  {name}: {text}" for name, text in manipulations.items())
+    tests = "\n".join(f"  {n}" for n in node_ids) or "  (unknown)"
+
+    instruction = f"""A test in {case_name} is flaky.
+
+Measured over {confirm_report.runs} runs at {confirm_report.workers} worker(s):
+  failure rate: {confirm_report.flake_rate:.1%} ({confirm_report.failures} failures)
+  distinct failure signatures: {confirm_report.distinct_signatures}
+
+{confirm_report.signature_table(limit=5)}
+
+{taxonomy_block()}
+
+{_evidence_block(history)}
+
+{ruled_out}
+
+This is round {round_number}.
+
+Do two things in one reply.
+
+First, propose at most three ranked candidate root causes, each with the
+reasoning from the source and failure signature, and a prediction that
+distinguishes it from the others.
+
+Second, choose the ONE manipulation to run now -- the one whose outcome differs
+most between those candidates. A manipulation they all predict the same result
+for is wasted.
+
+Available manipulations:
+{catalogue}
+
+The tests in this case, by exact node id. For isolate_test or force_test_order
+the parameter MUST be one of these verbatim; an id that does not exist makes
+pytest collect nothing, which proves nothing:
+{tests}
+
+Here is the complete project.
+
+{project_source}"""
+
+    response = client.complete(
+        agent_name="agent.round",
+        instruction=instruction,
+        system=SYSTEM_PROMPT,
+        response_schema=ROUND_SCHEMA,
+    )
+    payload = response.json()
+    hypotheses = [Hypothesis.from_dict(h) for h in payload.get("hypotheses", [])][:3]
+    return hypotheses, payload.get("experiment", {})

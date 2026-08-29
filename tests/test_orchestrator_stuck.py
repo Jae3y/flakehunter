@@ -81,9 +81,11 @@ class ScriptedClient:
         return ScriptedResponse(payload)
 
     def _payload_for(self, agent_name: str) -> dict[str, Any]:
-        if agent_name == "agent.hypothesize":
-            # The same top candidate every round. A model that has stopped
-            # updating on evidence looks exactly like this.
+        if agent_name == "agent.round":
+            # The same top candidate every round, paired with an experiment
+            # that cannot confirm it: pinning the timezone has no bearing on an
+            # RNG-driven failure. A model that has stopped updating on evidence
+            # looks exactly like this.
             return {
                 "hypotheses": [
                     {
@@ -92,17 +94,14 @@ class ScriptedClient:
                         "reasoning": "Threads mutate shared state without a lock.",
                         "discriminating_prediction": "Serialising would eliminate it.",
                     }
-                ]
-            }
-        if agent_name == "agent.experiment.design":
-            # Pinning the timezone cannot affect an RNG-driven failure, so this
-            # experiment can never confirm the hypothesis it claims to target.
-            return {
-                "manipulation": "pin_timezone",
-                "parameter": "UTC",
-                "targets_hypothesis": "H1",
-                "rationale": "Scripted: deliberately non-discriminating.",
-                "predicted_effect": "eliminated",
+                ],
+                "experiment": {
+                    "manipulation": "pin_timezone",
+                    "parameter": "UTC",
+                    "targets_hypothesis": "H1",
+                    "rationale": "Scripted: deliberately non-discriminating.",
+                    "predicted_effect": "eliminated",
+                },
             }
         raise AssertionError(f"the loop should not reach {agent_name} when stuck")
 
@@ -122,6 +121,7 @@ def scripted_run(tmp_path: Path):
         workers=8,
         max_rounds=5,
         scratch_root=tmp_path / "agent",
+        checkpoint_root=tmp_path / "checkpoints",
     )
     return client, executor, runner, config, tracer, tmp_path
 
@@ -203,6 +203,5 @@ def test_the_stuck_run_leaves_a_readable_trajectory(scripted_run) -> None:
         for line in tracer.path.read_text(encoding="utf-8").strip().splitlines()
     ]
     agents = {record["agent_name"] for record in records}
-    assert "agent.hypothesize" in agents
-    assert "agent.experiment.design" in agents
+    assert "agent.round" in agents
     assert [r["turn_id"] for r in records] == list(range(len(records)))

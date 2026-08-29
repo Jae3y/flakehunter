@@ -1,0 +1,33 @@
+{
+  "case": "case_11_cache_leak",
+  "model": "gemini-3.5-flash",
+  "updated_at": "seeded-from-prior-run",
+  "confirm": {
+    "case": "case_11_cache_leak",
+    "runs": 200,
+    "failures": 62,
+    "errors": 0,
+    "flake_rate": 0.31,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 138,
+      "fail": 62
+    },
+    "signatures": {
+      "pass": 138,
+      "AssertionError at test_pricing.py:29: assert <n> == <n>": 62
+    },
+    "distinct_signatures": 1,
+    "wall_s": 12.3,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": "seeded from a run cut off by quota; reasoning from gemini-3.5-flash discarded, CONFIRM kept"
+}

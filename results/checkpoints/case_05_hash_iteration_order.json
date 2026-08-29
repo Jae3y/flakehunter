@@ -1,0 +1,106 @@
+{
+  "case": "case_05_hash_iteration_order",
+  "model": "gemini-3.6-flash",
+  "updated_at": "seeded-from-prior-run",
+  "confirm": {
+    "case": "case_05_hash_iteration_order",
+    "runs": 200,
+    "failures": 14,
+    "errors": 0,
+    "flake_rate": 0.07,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 186,
+      "fail": 14
+    },
+    "signatures": {
+      "pass": 186,
+      "AssertionError at test_config.py:19: assert <str> == <str>": 14
+    },
+    "distinct_signatures": 1,
+    "wall_s": 12.5,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 1,
+  "hypotheses": [
+    {
+      "round": 1,
+      "items": [
+        {
+          "id": "H1",
+          "root_cause_class": "hash_iteration_order",
+          "reasoning": "The function `resolve` iterates over `sources`, which is passed as a `set[Source]`. Set iteration order in Python depends on object hashes and hash seeds across process invocations; when the `legacy` source (which yields 'staging') happens to be iterated first, `resolve` returns 'staging' instead of 'production'.",
+          "discriminating_prediction": "Sorting `sources` by name or setting a fixed `PYTHONHASHSEED` will consistently yield the exact same outcome on every run, whereas changing worker count or running in isolation will not eliminate the failure rate.",
+          "status": "proposed",
+          "evidence": []
+        },
+        {
+          "id": "H2",
+          "root_cause_class": "test_order_dependency",
+          "reasoning": "The global module-level `SOURCES` variable could be mutated by another test executing prior to `test_environment_resolves_to_production` in the same worker process.",
+          "discriminating_prediction": "Running `test_environment_resolves_to_production` in complete isolation will achieve a 0% failure rate if caused by test order dependency, but will still fail non-deterministically if caused by set iteration order.",
+          "status": "proposed",
+          "evidence": []
+        },
+        {
+          "id": "H3",
+          "root_cause_class": "race_condition",
+          "reasoning": "Concurrent test execution across 8 workers might cause inter-process or multi-thread state corruption if `SOURCES` or global state is modified concurrently without locking.",
+          "discriminating_prediction": "Running the test suite sequentially on a single worker will completely eliminate failures if a race condition is responsible, but will fail to eliminate failures under set iteration randomization.",
+          "status": "proposed",
+          "evidence": []
+        }
+      ]
+    }
+  ],
+  "experiments": [
+    {
+      "experiment": {
+        "manipulation": "pin_hash_seed",
+        "parameter": "0",
+        "targets_hypothesis": "H1",
+        "rationale": "Fixing PYTHONHASHSEED standardizes Python set iteration order across test runs. If H1 is correct, pinning the hash seed eliminates the random iteration order and thus eliminates flakiness, whereas H2 and H3 predict flakiness depends on test order or concurrent execution state.",
+        "predicted_effect": "eliminated"
+      },
+      "baseline_rate": 0.07,
+      "observed_rate": 0.4733,
+      "actual_effect": "increased",
+      "matches_prediction": false,
+      "unsupported": false,
+      "note": "",
+      "verification": {
+        "case": "case_05_hash_iteration_order@pin_hash_seed",
+        "runs": 150,
+        "failures": 71,
+        "errors": 0,
+        "flake_rate": 0.4733,
+        "is_sound": true,
+        "outcomes": {
+          "fail": 71,
+          "pass": 79
+        },
+        "signatures": {
+          "AssertionError at test_config.py:19: assert <str> == <str>": 71,
+          "pass": 79
+        },
+        "distinct_signatures": 1,
+        "wall_s": 11.05,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {
+          "PYTHONHASHSEED": "0"
+        }
+      }
+    }
+  ],
+  "eliminated": [
+    "hash_iteration_order"
+  ],
+  "history": [
+    "pin_hash_seed(0) -> predicted eliminated, observed increased (7.0% -> 47.3%)"
+  ],
+  "seen_signatures": [],
+  "note": "seeded from a run cut off by quota"
+}

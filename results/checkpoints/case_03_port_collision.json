@@ -1,0 +1,55 @@
+{
+  "case": "case_03_port_collision",
+  "model": "gemini-3.6-flash",
+  "updated_at": "seeded-from-prior-run",
+  "confirm": {
+    "case": "case_03_port_collision",
+    "runs": 200,
+    "failures": 56,
+    "errors": 0,
+    "flake_rate": 0.28,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 144,
+      "fail": 56
+    },
+    "signatures": {
+      "pass": 144,
+      "AssertionError at test_net.py:37: bind failed for <n> service(s): <seq> Address already in use": 56
+    },
+    "distinct_signatures": 1,
+    "wall_s": 11.71,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [
+    {
+      "round": 1,
+      "items": [
+        {
+          "id": "H1",
+          "root_cause_class": "resource_leak_port_collision",
+          "reasoning": "find_free_port tests port availability by binding and immediately closing a probe socket, creating a time-of-check to time-of-use (TOCTOU) gap. Because the probe socket is closed before Service.start() binds the actual socket, the port is released and returned to the OS pool where concurrent threads or processes can acquire it.",
+          "discriminating_prediction": "If find_free_port is changed to return an open bound socket directly to Service.start() without closing it first, the failure rate will drop to 0%.",
+          "status": "proposed",
+          "evidence": []
+        },
+        {
+          "id": "H2",
+          "root_cause_class": "race_condition",
+          "reasoning": "The test uses a threading barrier to force two threads to invoke service.start() simultaneously. Because find_free_port contains no lock or synchronization, both threads scan starting at BASE_PORT and read the port as available at the exact same time.",
+          "discriminating_prediction": "If a process-wide threading Lock is placed around the call to find_free_port() inside Service.start(), the test will pass when run sequentially or multithreaded within a single process, but will still fail if multiple pytest workers run simultaneously.",
+          "status": "proposed",
+          "evidence": []
+        }
+      ]
+    }
+  ],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": "seeded from a run cut off by quota"
+}

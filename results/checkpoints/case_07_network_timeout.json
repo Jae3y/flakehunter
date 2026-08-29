@@ -1,0 +1,33 @@
+{
+  "case": "case_07_network_timeout",
+  "model": "gemini-3.5-flash",
+  "updated_at": "seeded-from-prior-run",
+  "confirm": {
+    "case": "case_07_network_timeout",
+    "runs": 200,
+    "failures": 54,
+    "errors": 0,
+    "flake_rate": 0.27,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 146,
+      "fail": 54
+    },
+    "signatures": {
+      "pass": 146,
+      "TimeoutError at client.py:35: timed out": 54
+    },
+    "distinct_signatures": 1,
+    "wall_s": 19.17,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": "seeded from a run cut off by quota; reasoning from gemini-3.5-flash discarded, CONFIRM kept"
+}

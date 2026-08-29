@@ -40,7 +40,8 @@ from src.agent.experiments import (
     discover_node_ids,
     run_experiment,
 )
-from src.agent.hypotheses import Hypothesis, propose_hypotheses
+from src.agent.checkpoint import CaseCheckpoint, load_checkpoint, save_checkpoint
+from src.agent.hypotheses import Hypothesis, propose_round
 from src.agent.patcher import author_patch
 from src.baseline.one_shot import PatchApplicationError, apply_patch
 from src.harness.runner import BatchReport, TestRunner
@@ -71,6 +72,9 @@ class AgentConfig:
     max_rounds: int = 5
     max_patch_attempts: int = 3
     scratch_root: Path = Path("/scratch/agent")
+    #: Where per-case checkpoints live. Overridden in tests so runs stay
+    #: isolated -- a leaked checkpoint would make a test resume from another.
+    checkpoint_root: Path | None = None
 
 
 @dataclass
@@ -94,6 +98,7 @@ class CaseOutcome:
     prompt_tokens: int = 0
     output_tokens: int = 0
     approval_dir: str | None = None
+    resumed_from: str = "no checkpoint"
 
     @property
     def cause_identified(self) -> bool:
@@ -134,6 +139,7 @@ class CaseOutcome:
                 "total": self.prompt_tokens + self.output_tokens,
             },
             "approval_dir": self.approval_dir,
+            "resumed_from": self.resumed_from,
         }
 
 
@@ -307,14 +313,29 @@ def run_agent_case(
     )
 
     try:
-        # -- CONFIRM ---------------------------------------------------------
-        confirm = runner.measure(
-            project,
-            runs=config.confirm_runs,
-            workers=config.workers,
-            case_name=case.name,
-            agent_name="agent.confirm",
+        # -- resume ----------------------------------------------------------
+        # A case cut off by quota has already established things. Re-deriving
+        # them costs requests we do not have.
+        checkpoint = load_checkpoint(
+            case.name, client.model, config.checkpoint_root
+        ) or CaseCheckpoint(
+            case=case.name, model=client.model
         )
+        outcome.resumed_from = checkpoint.describe()
+
+        # -- CONFIRM ---------------------------------------------------------
+        if checkpoint.confirm is not None:
+            confirm = checkpoint.confirm
+        else:
+            confirm = runner.measure(
+                project,
+                runs=config.confirm_runs,
+                workers=config.workers,
+                case_name=case.name,
+                agent_name="agent.confirm",
+            )
+            checkpoint.confirm = confirm
+            save_checkpoint(checkpoint, config.checkpoint_root)
         outcome.confirm_report = confirm
         if confirm.failures == 0:
             outcome.status = "NO_FLAKE"
@@ -323,15 +344,23 @@ def run_agent_case(
             )
             return outcome
 
-        history: list[str] = []
-        eliminated: list[str] = []
-        seen_signatures: set[tuple[str, tuple[str, ...]]] = set()
+        history: list[str] = list(checkpoint.history) if checkpoint.llm_state_usable else []
+        eliminated: list[str] = (
+            list(checkpoint.eliminated) if checkpoint.llm_state_usable else []
+        )
+        seen_signatures: set[tuple[str, tuple[str, ...]]] = {
+            (sig[0], tuple(sig[1])) for sig in checkpoint.seen_signatures
+        } if checkpoint.llm_state_usable else set()
+        if checkpoint.llm_state_usable:
+            outcome.hypotheses = list(checkpoint.hypotheses)
+            outcome.experiments = list(checkpoint.experiments)
+        already_done = checkpoint.rounds_completed if checkpoint.llm_state_usable else 0
 
-        for round_number in range(1, config.max_rounds + 1):
+        for round_number in range(already_done + 1, config.max_rounds + 1):
             outcome.rounds = round_number
 
-            # -- HYPOTHESIZE -------------------------------------------------
-            hypotheses = propose_hypotheses(
+            # -- HYPOTHESIZE + EXPERIMENT DESIGN, one request ------------------
+            hypotheses, experiment_payload = propose_round(
                 client,
                 case.name,
                 source,
@@ -339,6 +368,8 @@ def run_agent_case(
                 history,
                 eliminated,
                 round_number,
+                MANIPULATIONS,
+                discover_node_ids(project),
             )
             if not hypotheses:
                 outcome.stuck_reason = "the model proposed no hypotheses"
@@ -361,9 +392,7 @@ def run_agent_case(
             seen_signatures.add(signature)
 
             # -- EXPERIMENT + OBSERVE ----------------------------------------
-            experiment = design_experiment(
-                client, case.name, hypotheses, history, discover_node_ids(project)
-            )
+            experiment = Experiment.from_dict(experiment_payload)
             result: ExperimentOutcome = run_experiment(
                 experiment,
                 project,
@@ -375,6 +404,18 @@ def run_agent_case(
             )
             outcome.experiments.append(result.to_dict())
             history.append(result.summary())
+
+            # Checkpoint before the patch attempts: this round's evidence is
+            # established regardless of what happens next.
+            checkpoint.rounds_completed = round_number
+            checkpoint.hypotheses = outcome.hypotheses
+            checkpoint.experiments = outcome.experiments
+            checkpoint.history = history
+            checkpoint.eliminated = eliminated
+            checkpoint.seen_signatures = [
+                [cls, list(elim)] for cls, elim in seen_signatures
+            ]
+            save_checkpoint(checkpoint, config.checkpoint_root)
 
             targeted = next(
                 (h for h in hypotheses if h.id == experiment.targets_hypothesis),

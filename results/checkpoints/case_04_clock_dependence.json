@@ -1,0 +1,33 @@
+{
+  "case": "case_04_clock_dependence",
+  "model": "gemini-3.6-flash",
+  "updated_at": "seeded-from-prior-run",
+  "confirm": {
+    "case": "case_04_clock_dependence",
+    "runs": 200,
+    "failures": 14,
+    "errors": 0,
+    "flake_rate": 0.07,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 186,
+      "fail": 14
+    },
+    "signatures": {
+      "pass": 186,
+      "AssertionError at test_ratelimit.py:22: the second hit landed in a different bucket": 14
+    },
+    "distinct_signatures": 1,
+    "wall_s": 16.08,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": "seeded from a run cut off by quota"
+}
