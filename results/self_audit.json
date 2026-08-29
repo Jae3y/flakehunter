@@ -7,12 +7,12 @@
   {
     "name": "decisions logged with reasoning",
     "passed": true,
-    "evidence": "20 entries, all four sections present"
+    "evidence": "21 entries, all four sections present"
   },
   {
     "name": "every case PENDING or UNRESOLVED",
     "passed": true,
-    "evidence": "5 ERROR"
+    "evidence": "8 ERROR"
   },
   {
     "name": "corpus unmodified by any patch",

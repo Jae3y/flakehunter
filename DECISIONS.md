@@ -619,11 +619,20 @@ rather than deterministic. Both are consequences of the same deliberate choice.
 
 ## D-021 — Blast radius of the case 06 checkpoint contamination: none
 
-Recorded explicitly so it is not ambiguous later. The question: did the leaked
-60-run CONFIRM for case 06 ever feed a reported baseline or agent number?
+**Tension.** A contaminated measurement was found and removed. The cheap
+response is to say "it was caught early" and move on. But "caught early" is
+exactly the kind of claim that is impossible to check later, and a reader six
+months from now has no way to tell whether the leaked 60-run CONFIRM reached a
+reported number or not.
+
+**Chosen.** Verify it four independent ways, each of which someone else can
+re-run, and record the verification rather than the reassurance.
+
+**Why.** The question: did the leaked 60-run CONFIRM for case 06 ever feed a
+reported baseline or agent number?
 
 **No. It was caught by the guard before it reached any measurement.** Four
-independent confirmations, each checkable:
+confirmations, each checkable:
 
 1. **case 06 has no agent result in any results file.** Searched
    `results/agent_results*.json` and `results/archive/agent_results*.json`: no
@@ -658,3 +667,10 @@ the number, and a wrong condition announces itself.
 The near-miss is the useful part. Had it gone unnoticed, a later resumed run
 would have reasoned from a 60-run sample while reporting as though it had 200 —
 quietly weaker evidence, with nothing in the output saying so.
+
+**Revisit if.** A checkpoint is ever read by something other than the agent
+loop. The second confirmation above ("the baseline arm cannot read
+checkpoints") is a property of the current code, not a guarantee; if the
+baseline or `measure_corpus.py` ever gained checkpoint awareness, the blast
+radius of a bad checkpoint would widen and this entry would need re-deriving
+rather than citing.
