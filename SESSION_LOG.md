@@ -7,57 +7,55 @@ should claim, and one hard blocker that stopped the agent arm at 2 of 12 cases.
 
 ## Read this first
 
-**1. The baseline is far stronger than the premise assumed — and that turned
-out to be the interesting result, not a problem.**
+**1. The comparison is claimed → verified → legitimate, and it narrows twice.**
 
-A single call to `gemini-3.6-flash`, given the taxonomy and an explicit rule
-that widening a timing window is not a fix, produced a patch for **12/12**
-cases and reported `high` confidence on **every single one**. It even got case
-12, the masking trap, correct — the real publication-ordering fix, not a sleep,
-not a retry.
-
-Re-running each of those patches 500 times: **10 of 12 were actually fixes.**
+The one-shot baseline returned a patch for **12/12** cases and attached `high`
+confidence to **every one**. Two further questions cut it down:
 
 | | Count |
 |---|---|
 | Patches produced | 12/12 |
 | Reported `high` confidence | **12/12** |
-| Verified at zero failures | **10/12** |
-| Confident patches that were **not** fixes | **2** |
+| Verified at zero failures over 500 runs | **10** |
+| Accepted by the anti-cheat validator | **10/12** |
 
-The two false greens:
+The two that fail, and they fail for different reasons:
 
-- **case_07** — correct root cause, plausible retry fix, **0.80% residual**
-  (4 failures in 500 runs). One execution would never surface it.
-- **case_01** — the correct fix (a lock), but every verification run *errored*
-  on a CPU limit. A `0.00%` residual that meant nothing.
+- **case 07** — correct root cause, `high` confidence, **0.80% residual**. The
+  validator drives it to **49/200 (24.5%) at 32 workers**: not an incomplete
+  fix but a **confirmed mask**, widening the timing window rather than closing
+  it.
+- **case 01** — the patch **never compiled** (`def __init__( -> None:`). All
+  500 verification runs errored during collection and it reported a residual
+  flake rate of **0.00%** — the most flattering number in the table, from code
+  that never ran.
 
-Nothing distinguished those two from the ten that worked except running the
-test hundreds of times. **That is the gap the harness fills, and it is a
-sharper claim than "the agent fixes more".** The baseline's problem is not
-competence, it is that it cannot audit itself.
+Nothing in the model's own output separated those from the ten that worked.
+That separation came entirely from running the tests and from the validator,
+neither of which the baseline has.
 
-The live agent run on case 07 is the counterpart: it spent five rounds, had
-three patches rejected by the validator, and **declined to declare success** on
-the same case the baseline called `high` confidence.
+**2. The validator was defeated once, and the fix was retroactive.**
 
-**2. The validator caught the agent cheating — after initially letting it
-through.** On the case 07 retry the agent produced a patch that passed all seven
-checks then in force, including the stress re-verification, while doing two
-masking things: raising the client timeout 0.005s → 5.0s, and setting the test
-fixture's `SERVICE_WORK_S` to **0.0**, deleting the delay that produces the
-flakiness. It survived the stress check because oversubscribing the CPU
-stretches a timing window, and there was no window left to stretch.
+The agent's case 07 patch passed all seven checks then in force — including the
+stress pass — while raising a timeout 1000× *and* setting the test fixture's
+`SERVICE_WORK_S` to **0.0**, deleting the delay that produces the flakiness. It
+survived the stress check because oversubscribing the CPU stretches a timing
+window, and there was no window left to stretch.
 
-The validator was hardened (test-condition constants are now protected), every
-pending patch was re-validated, and case 07 was **demoted from PENDING to
-UNRESOLVED**. Its 0/500 verification is real and meaningless — it measured a
-test whose failure condition had been removed.
+Two checks were added (`test_conditions_unchanged`, `patch_parses`) and **all
+14 previously-accepted patches were re-checked**, on the principle that
+acceptance under a weaker rule set is not evidence. That re-check is what
+surfaced case 01's syntax error and case 07's mask.
 
-**3. Stopped by API quota, not by the code.** Billing was enabled and three
-consecutive calls succeeded, but the daily free-tier cap
-(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, limit 20) is **still
-being enforced on this key**. Nine cases never got a live agent run.
+**3. I got a diagnosis wrong and corrected it on the record.** D-011 attributed
+case 01's 500 error runs to `RLIMIT_CPU`, inferred from the exit code without
+reading the stderr. Raising the CPU budget changed nothing, which is what
+finally prompted reading it. A syntax error and a resource kill both exit
+pytest 2. D-011 now carries the correction rather than being quietly edited.
+
+**4. Quota, still.** Free-tier 20/day per model is still enforced on this key
+despite billing. Nine cases have no live agent run, and case 07's requested
+fresh attempt was blocked before its first call.
 
 ---
 
