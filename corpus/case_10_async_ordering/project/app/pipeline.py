@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
-#: Base cost of rendering a panel, in loop iterations.
-BASE_WORK = 30_000
-
-#: Extra cost each successive panel carries. Later panels are heavier, so they
-#: normally finish later -- which is exactly why completion order usually
-#: matches layout order, and only sometimes does not.
-WORK_STEP = 6_000
+#: Cost of rendering a panel, in loop iterations. Every panel costs the same,
+#: so no panel is intrinsically "first to finish" -- completion order is
+#: decided by thread scheduling alone, which is the nondeterminism this case
+#: is about.
+PANEL_WORK = 120_000
 
 
 def _render(name: str, iterations: int) -> str:
@@ -24,10 +22,7 @@ def _render(name: str, iterations: int) -> str:
 async def render_panels(names: list[str]) -> list[str]:
     """Render every panel, collecting results as each finishes."""
     loop = asyncio.get_running_loop()
-    tasks = [
-        loop.run_in_executor(None, _render, name, BASE_WORK + position * WORK_STEP)
-        for position, name in enumerate(names)
-    ]
+    tasks = [loop.run_in_executor(None, _render, name, PANEL_WORK) for name in names]
 
     rendered: list[str] = []
     for completed in asyncio.as_completed(tasks):

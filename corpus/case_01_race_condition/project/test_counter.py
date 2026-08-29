@@ -12,7 +12,7 @@ WORKERS = 8
 #: CPython switches threads every 5 ms by default; a loop of a few thousand
 #: increments finishes inside one slice, so the workers run to completion one
 #: after another and the interleaving that loses updates never happens.
-REQUESTS_PER_WORKER = 25_000
+REQUESTS_PER_WORKER = 50_000
 
 
 def test_no_requests_are_lost_under_concurrency() -> None:
