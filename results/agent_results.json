@@ -1,0 +1,502 @@
+{
+  "measured_at": "2026-08-29T07:28:46Z",
+  "model": "gemini-3.6-flash",
+  "trace_run_id": "agent-20260829T071013Z",
+  "usage": {
+    "calls": 5,
+    "prompt_tokens": 5743,
+    "output_tokens": 17714,
+    "total_tokens": 23457
+  },
+  "results": [
+    {
+      "case": "case_07_network_timeout",
+      "status": "ERROR",
+      "expected_class": "network_timeout_no_retry",
+      "concluded_class": "race_condition",
+      "cause_identified": false,
+      "rounds": 2,
+      "confirm": {
+        "case": "case_07_network_timeout",
+        "runs": 200,
+        "failures": 21,
+        "errors": 0,
+        "flake_rate": 0.105,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 179,
+          "fail": 21
+        },
+        "signatures": {
+          "pass": 179,
+          "TimeoutError at client.py:35: timed out": 21
+        },
+        "distinct_signatures": 1,
+        "wall_s": 13.46,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [
+        {
+          "round": 1,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "network_timeout_no_retry",
+              "reasoning": "StatusClient sets a hard 5ms timeout (TIMEOUT_S = 0.005) with no retry mechanism, while status_service delays response by 4.75ms via time.sleep(). The 0.25ms buffer is easily exceeded by TCP connection setup and thread scheduling overhead under load, throwing TimeoutError at client.py:35.",
+              "discriminating_prediction": "Increasing TIMEOUT_S to 0.1s in app/client.py eliminates all test failures over 200 runs at 8 workers, whereas if H2 ( background thread preemption/stall) were the primary cause, thread delays exceeding 100ms under high worker load would still produce occasional timeouts.",
+              "status": "proposed",
+              "evidence": []
+            },
+            {
+              "id": "H2",
+              "root_cause_class": "race_condition",
+              "reasoning": "The status service runs in a background daemon thread that competes for CPU time with 8 parallel pytest workers. Thread preemption between listener.accept(), recv(), and sendall() introduces non-deterministic delays that cause the client socket to time out before receiving bytes.",
+              "discriminating_prediction": "Running the test suite sequentially with a single worker (-n 1) drops the failure rate to 0% without changing TIMEOUT_S, whereas under H1, single-worker runs will still experience failures due to the strict 0.25ms margin.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        }
+      ],
+      "experiments": [
+        {
+          "experiment": {
+            "manipulation": "serialize_execution",
+            "parameter": "",
+            "targets_hypothesis": "H2",
+            "rationale": "Serializing execution removes CPU contention from parallel workers. If H2 is correct, running sequentially eliminates the failures, whereas under H1, the tight 0.25ms margin still causes failures on a single worker.",
+            "predicted_effect": "eliminated"
+          },
+          "baseline_rate": 0.105,
+          "observed_rate": 0.0067,
+          "actual_effect": "reduced",
+          "matches_prediction": true,
+          "unsupported": false,
+          "note": "",
+          "verification": {
+            "case": "case_07_network_timeout@serialize_execution",
+            "runs": 150,
+            "failures": 1,
+            "errors": 0,
+            "flake_rate": 0.0067,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 149,
+              "fail": 1
+            },
+            "signatures": {
+              "pass": 149,
+              "TimeoutError at client.py:35: timed out": 1
+            },
+            "distinct_signatures": 1,
+            "wall_s": 44.85,
+            "workers": 1,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        }
+      ],
+      "validations": [
+        {
+          "attempt": 1,
+          "round": 1,
+          "passed": false,
+          "checks": [
+            {
+              "name": "protected_paths",
+              "passed": true,
+              "detail": "no protected file touched"
+            },
+            {
+              "name": "modifies_source",
+              "passed": true,
+              "detail": "source modified: ['app/client.py']"
+            },
+            {
+              "name": "assertions_intact",
+              "passed": true,
+              "detail": "no assertion removed or weakened"
+            },
+            {
+              "name": "test_not_disabled",
+              "passed": true,
+              "detail": "no skip/xfail/retry marker added"
+            },
+            {
+              "name": "comparison_not_loosened",
+              "passed": true,
+              "detail": "no comparison loosened"
+            },
+            {
+              "name": "not_only_sleep",
+              "passed": true,
+              "detail": "29 substantive line(s) added, 0 sleep(s)"
+            },
+            {
+              "name": "survives_stress",
+              "passed": false,
+              "detail": "21/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+            }
+          ],
+          "rejections": [
+            "survives_stress: 21/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+          ],
+          "stress": {
+            "case": "case_07_network_timeout@stress",
+            "runs": 200,
+            "failures": 21,
+            "errors": 0,
+            "flake_rate": 0.105,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 179,
+              "fail": 21
+            },
+            "signatures": {
+              "pass": 179,
+              "TimeoutError at client.py:44: timed out": 21
+            },
+            "distinct_signatures": 1,
+            "wall_s": 9.68,
+            "workers": 32,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        },
+        {
+          "attempt": 2,
+          "round": 1,
+          "passed": false,
+          "checks": [
+            {
+              "name": "protected_paths",
+              "passed": true,
+              "detail": "no protected file touched"
+            },
+            {
+              "name": "modifies_source",
+              "passed": true,
+              "detail": "source modified: ['app/client.py']"
+            },
+            {
+              "name": "assertions_intact",
+              "passed": true,
+              "detail": "no assertion removed or weakened"
+            },
+            {
+              "name": "test_not_disabled",
+              "passed": true,
+              "detail": "no skip/xfail/retry marker added"
+            },
+            {
+              "name": "comparison_not_loosened",
+              "passed": true,
+              "detail": "no comparison loosened"
+            },
+            {
+              "name": "not_only_sleep",
+              "passed": true,
+              "detail": "22 substantive line(s) added, 0 sleep(s)"
+            },
+            {
+              "name": "survives_stress",
+              "passed": false,
+              "detail": "4/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+            }
+          ],
+          "rejections": [
+            "survives_stress: 4/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+          ],
+          "stress": {
+            "case": "case_07_network_timeout@stress",
+            "runs": 200,
+            "failures": 4,
+            "errors": 0,
+            "flake_rate": 0.02,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 196,
+              "fail": 4
+            },
+            "signatures": {
+              "pass": 196,
+              "TimeoutError at client.py:34: timed out": 4
+            },
+            "distinct_signatures": 1,
+            "wall_s": 9.0,
+            "workers": 32,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        },
+        {
+          "attempt": 3,
+          "round": 1,
+          "passed": false,
+          "checks": [
+            {
+              "name": "protected_paths",
+              "passed": true,
+              "detail": "no protected file touched"
+            },
+            {
+              "name": "modifies_source",
+              "passed": true,
+              "detail": "source modified: ['app/client.py']"
+            },
+            {
+              "name": "assertions_intact",
+              "passed": true,
+              "detail": "no assertion removed or weakened"
+            },
+            {
+              "name": "test_not_disabled",
+              "passed": true,
+              "detail": "no skip/xfail/retry marker added"
+            },
+            {
+              "name": "comparison_not_loosened",
+              "passed": true,
+              "detail": "no comparison loosened"
+            },
+            {
+              "name": "not_only_sleep",
+              "passed": true,
+              "detail": "28 substantive line(s) added, 0 sleep(s)"
+            },
+            {
+              "name": "survives_stress",
+              "passed": false,
+              "detail": "1/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+            }
+          ],
+          "rejections": [
+            "survives_stress: 1/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+          ],
+          "stress": {
+            "case": "case_07_network_timeout@stress",
+            "runs": 200,
+            "failures": 1,
+            "errors": 0,
+            "flake_rate": 0.005,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 199,
+              "fail": 1
+            },
+            "signatures": {
+              "pass": 199,
+              "TimeoutError at client.py:42: timed out": 1
+            },
+            "distinct_signatures": 1,
+            "wall_s": 9.01,
+            "workers": 32,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        }
+      ],
+      "patch": {
+        "root_cause_class": "race_condition",
+        "root_cause_explanation": " background thread while the client makes a single connection attempt with a tight 5ms timeout. Under high worker oversubscription, thread preemption delays the service's response past the socket timeout, causing single-attempt fetches to fail. Retrying on transient OSError in StatusClient handles scheduling jitter and ensures reliable completion.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/client.py",
+            "new_content": "\"\"\"Client for the internal status service.\"\"\"\n\nfrom __future__ import annotations\n\nimport socket\n\n#: How long to wait for the service before giving up.\nTIMEOUT_S = 0.005\nMAX_RETRIES = 20\n\n\nclass StatusClient:\n    \"\"\"Fetches a status line from the service over TCP.\"\"\"\n\n    def __init__(\n        self,\n        host: str,\n        port: int,\n        timeout_s: float = TIMEOUT_S,\n        max_retries: int = MAX_RETRIES,\n    ) -> None:\n        self.host = host\n        self.port = port\n        self.timeout_s = timeout_s\n        self.max_retries = max_retries\n\n    def fetch_status(self) -> bytes:\n        \"\"\"Return the service's status line.\n\n        Raises:\n            OSError: On connect failure or timeout after retries.\n        \"\"\"\n        last_exc: OSError | None = None\n        for _ in range(self.max_retries + 1):\n            try:\n                sock = socket.create_connection(\n                    (self.host, self.port), timeout=self.timeout_s\n                )\n                try:\n                    sock.settimeout(self.timeout_s)\n                    sock.sendall(b\"STATUS\\n\")\n                    return sock.recv(64)\n                finally:\n                    sock.close()\n            except OSError as exc:\n                last_exc = exc\n\n        if last_exc is not None:\n            raise last_exc\n        raise OSError(\"Failed to fetch status\")\n",
+            "rationale": "Adds retry logic to StatusClient to handle transient socket timeouts and connection failures caused by background thread scheduling preemption under CPU load."
+          }
+        ]
+      },
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash call failed: HTTP 0: URLError: <urlopen error [Errno -2] Name or service not known>",
+      "wall_s": 587.8,
+      "tokens": {
+        "prompt": 5743,
+        "output": 17714,
+        "total": 23457
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_02_test_order_dependency",
+      "status": "ERROR",
+      "expected_class": "test_order_dependency",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_02_test_order_dependency",
+        "runs": 200,
+        "failures": 58,
+        "errors": 0,
+        "flake_rate": 0.29,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 142,
+          "fail": 58
+        },
+        "signatures": {
+          "pass": 142,
+          "AssertionError at test_registry.py:9: unexpected plugins present: <seq>": 58
+        },
+        "distinct_signatures": 1,
+        "wall_s": 13.06,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash call failed: HTTP 0: URLError: <urlopen error [Errno -2] Name or service not known>",
+      "wall_s": 133.4,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_03_port_collision",
+      "status": "ERROR",
+      "expected_class": "resource_leak_port_collision",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_03_port_collision",
+        "runs": 200,
+        "failures": 59,
+        "errors": 0,
+        "flake_rate": 0.295,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 141,
+          "fail": 59
+        },
+        "signatures": {
+          "pass": 141,
+          "AssertionError at test_net.py:37: bind failed for <n> service(s): <seq> Address already in use": 59
+        },
+        "distinct_signatures": 1,
+        "wall_s": 10.71,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash call failed: HTTP 0: URLError: <urlopen error [Errno -2] Name or service not known>",
+      "wall_s": 131.0,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_04_clock_dependence",
+      "status": "ERROR",
+      "expected_class": "clock_dependence",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_04_clock_dependence",
+        "runs": 200,
+        "failures": 6,
+        "errors": 0,
+        "flake_rate": 0.03,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 194,
+          "fail": 6
+        },
+        "signatures": {
+          "pass": 194,
+          "AssertionError at test_ratelimit.py:22: the second hit landed in a different bucket": 6
+        },
+        "distinct_signatures": 1,
+        "wall_s": 10.28,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash call failed: HTTP 0: URLError: <urlopen error [Errno -2] Name or service not known>",
+      "wall_s": 130.6,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_05_hash_iteration_order",
+      "status": "ERROR",
+      "expected_class": "hash_iteration_order",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_05_hash_iteration_order",
+        "runs": 200,
+        "failures": 5,
+        "errors": 0,
+        "flake_rate": 0.025,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 195,
+          "fail": 5
+        },
+        "signatures": {
+          "pass": 195,
+          "AssertionError at test_config.py:19: assert <str> == <str>": 5
+        },
+        "distinct_signatures": 1,
+        "wall_s": 9.69,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash call failed: HTTP 0: URLError: <urlopen error [Errno -2] Name or service not known>",
+      "wall_s": 129.9,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null
+    }
+  ]
+}

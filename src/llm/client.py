@@ -43,6 +43,17 @@ RETRYABLE = frozenset({408, 429, 500, 502, 503, 504})
 #: Attempts per call, including the first.
 MAX_ATTEMPTS = 5
 
+#: Attempts for a *transport* failure -- DNS, connection reset, timeout.
+#: Deliberately larger than MAX_ATTEMPTS. An HTTP error is the server telling
+#: us something and repeating it rarely helps; a transport failure is the
+#: network being briefly absent, and it usually comes back. A Docker embedded
+#: DNS hiccup took out five consecutive cases in one run because the budget
+#: here was the same as for HTTP errors.
+TRANSPORT_ATTEMPTS = 9
+
+#: Ceiling on a single backoff sleep, so exponential growth stays bounded.
+MAX_BACKOFF_S = 60.0
+
 #: Base backoff, doubled per attempt.
 BACKOFF_S = 8.0
 
@@ -249,7 +260,7 @@ class GeminiClient:
         started = time.perf_counter()
         last_detail = "no attempt made"
 
-        for attempt in range(1, MAX_ATTEMPTS + 1):
+        for attempt in range(1, max(MAX_ATTEMPTS, TRANSPORT_ATTEMPTS) + 1):
             status, body = self._post(url, payload)
             if status == 200:
                 return self._parse(body, started, attempt)
@@ -292,9 +303,11 @@ class GeminiClient:
                 f"{turn.reflection}\nattempt {attempt}: {last_detail}"
                 f"{' (retrying)' if retryable and attempt < MAX_ATTEMPTS else ''}".strip()
             )
-            if not retryable or attempt == MAX_ATTEMPTS:
+            # Transport failures get a longer budget than HTTP errors.
+            budget = TRANSPORT_ATTEMPTS if status == 0 else MAX_ATTEMPTS
+            if not retryable or attempt >= budget:
                 break
-            time.sleep(BACKOFF_S * (2 ** (attempt - 1)))
+            time.sleep(min(BACKOFF_S * (2 ** (attempt - 1)), MAX_BACKOFF_S))
 
         raise LLMError(f"{self.model} call failed: {last_detail}")
 
