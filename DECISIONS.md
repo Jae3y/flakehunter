@@ -303,6 +303,9 @@ call for validity and the wrong one for cost, and both cannot be had with a
 GIL race -- the race needs each worker's loop to outlast the 5 ms switch
 interval, which sets a floor on how cheap the case can be.
 
+**Revisit if.** The corpus is re-measured at all -- this case should be made
+cheaper first, since every future run pays its cost twice (once per arm).
+
 **Remedy for the next session.** Either drop the thread count from 8 to 2-3
 (fewer threads still interleave, and the lock contention that makes the fixed
 version slow scales with thread count), or accept a lower serial flake rate

@@ -1,0 +1,79 @@
+{
+  "measured_at": "2026-08-29T06:38:04Z",
+  "model": "gemini-3.7-flash",
+  "trace_run_id": "agent-20260829T063020Z",
+  "usage": {
+    "calls": 1,
+    "prompt_tokens": 1207,
+    "output_tokens": 822,
+    "total_tokens": 2029
+  },
+  "results": [
+    {
+      "case": "case_07_network_timeout",
+      "status": "ERROR",
+      "expected_class": "network_timeout_no_retry",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_07_network_timeout",
+        "runs": 200,
+        "failures": 38,
+        "errors": 0,
+        "flake_rate": 0.19,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 162,
+          "fail": 38
+        },
+        "signatures": {
+          "pass": 162,
+          "TimeoutError at client.py:35: timed out": 38
+        },
+        "distinct_signatures": 1,
+        "wall_s": 21.44,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [
+        {
+          "round": 1,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "network_timeout_no_retry",
+              "reasoning": "The client uses a 5ms timeout with no retry mechanism, while the mock server intentionally sleeps for 4.75ms before responding. Under concurrent test runs with 8 workers, OS thread scheduling jitter frequently exceeds the narrow 0.25ms margin, causing socket.recv() to raise TimeoutError.",
+              "discriminating_prediction": "Increasing client timeout TIMEOUT_S (e.g., from 0.005s to 0.05s) or reducing SERVICE_WORK_S (e.g., to 0.001s) drops the failure rate to 0%, whereas modifying thread startup or running serially without adjusting timeouts/latencies will not eliminate jitter-induced timeouts entirely.",
+              "status": "proposed",
+              "evidence": []
+            },
+            {
+              "id": "H2",
+              "root_cause_class": "race_condition",
+              "reasoning": "The test fixture starts a background server thread and yields immediately before verifying the listener has entered accept(). If the client attempts to connect and exchange data before the server thread is scheduled, the connection or initial handshake stalls and times out.",
+              "discriminating_prediction": "Adding a synchronization barrier ensuring the server loop is actively blocked on accept() before yielding in status_service will eliminate the failures, even while keeping TIMEOUT_S at 0.005s and SERVICE_WORK_S at 0.00475s.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        }
+      ],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.7-flash call failed: HTTP 503: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+      "wall_s": 463.9,
+      "tokens": {
+        "prompt": 1207,
+        "output": 822,
+        "total": 2029
+      },
+      "approval_dir": null
+    }
+  ]
+}

@@ -41,10 +41,10 @@ DEFAULT_MODEL = "gemini-3.6-flash"
 RETRYABLE = frozenset({408, 429, 500, 502, 503, 504})
 
 #: Attempts per call, including the first.
-MAX_ATTEMPTS = 4
+MAX_ATTEMPTS = 5
 
 #: Base backoff, doubled per attempt.
-BACKOFF_S = 2.0
+BACKOFF_S = 8.0
 
 #: Longest we will honour a server-supplied retry delay before giving up. A
 #: per-minute rate limit says "retry in 30s" and is worth waiting out; a
