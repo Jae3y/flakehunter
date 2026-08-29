@@ -2,17 +2,17 @@
   {
     "name": "changelog entries with measurements",
     "passed": true,
-    "evidence": "001: 18 measurements; 002: 68 measurements; 003: 67 measurements; 004: 17 measurements; 005: 15 measurements; 006: 9 measurements; 007: 7 measurements"
+    "evidence": "001: 18 measurements; 002: 68 measurements; 003: 67 measurements; 004: 17 measurements; 005: 15 measurements; 006: 9 measurements; 007: 7 measurements; 008: 10 measurements"
   },
   {
     "name": "decisions logged with reasoning",
     "passed": true,
-    "evidence": "19 entries, all four sections present"
+    "evidence": "20 entries, all four sections present"
   },
   {
     "name": "every case PENDING or UNRESOLVED",
     "passed": true,
-    "evidence": "4 ERROR"
+    "evidence": "5 ERROR"
   },
   {
     "name": "corpus unmodified by any patch",

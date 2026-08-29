@@ -43,17 +43,19 @@ Then we re-ran each patch 500 times.
 The two false greens:
 
 - **case 07** — correct root cause, plausible fix, still fails **0.80%** of the
-  time. Four failures in 500 runs. One execution would never surface it.
-- **case 01** — the correct fix, but every verification run *errored* on a
-  resource limit. A `0.00%` residual that meant nothing.
+  time. Four failures in 500 runs. Under CPU oversubscription the validator
+  drives it to **24.5%**: a confirmed mask, not a near-miss.
+- **case 01** — the patch **never compiled** (`def __init__( -> None:`). All
+  500 runs errored during collection, and it reported a `0.00%` residual — the
+  most flattering number in the table, from code that never ran.
 
 Nothing separated those two from the ten that worked except running the test
-hundreds of times.
+hundreds of times and checking the patch.
 
 **So the value is not "the agent fixes more". It is that the agent knows
-whether it fixed anything.** On case 07 the agent spent five rounds, had three
-patches rejected by its own validator, and declined to declare success — on the
-exact case the control called `high` confidence.
+whether it fixed anything.** The control cannot: it reported the same `high`
+confidence on all twelve. Separating them took 500-run verification and an
+anti-cheat validator, neither of which a single call has.
 
 That is the shape of the problem in the field too. The bottleneck was never
 generating a plausible fix; it was confirming one.
@@ -92,10 +94,19 @@ cheating in the other. Syntax cannot separate them.
 
 So validation has two layers:
 
-**Structural** (AST, no execution) — assertions not deleted or made trivially
-true, no skip/xfail/flaky marker, exact comparisons not loosened to `approx`,
-source actually modified, `conftest.py` untouched, a bare sleep is not the whole
-patch.
+**Structural** (AST, no execution) — the patch parses; assertions not deleted or
+made trivially true; no skip/xfail/flaky marker; exact comparisons not loosened
+to `approx`; source actually modified; `conftest.py` untouched; **test-level
+condition constants unchanged**; a bare sleep is not the whole patch.
+
+The last two were added *because a patch got past the validator*. The agent
+once produced a fix that passed every check then in force — including the
+stress pass — by setting a test fixture's `SERVICE_WORK_S` to `0.0`, deleting
+the delay that produces the flakiness. It survived the stress check because
+oversubscribing the CPU stretches a timing *window*, and there was no window
+left to stretch. When a check is added, every previously accepted patch is
+re-run against it (`scripts/revalidate_pending.py`); acceptance under a weaker
+rule set is not evidence.
 
 **Behavioural** — re-verify under 4× CPU oversubscription. A sleep buys fixed
 headroom; a retry buys a fixed budget; a fix that removed the race has neither
