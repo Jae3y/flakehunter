@@ -271,3 +271,40 @@ just at 60 CPU-seconds instead of 10.
 in CPU -- more than four busy threads sustained for the whole run -- at which
 point the limit wants setting per case in the protocol module rather than
 globally.
+
+---
+
+## D-012 — case_01 is left too expensive, and flagged rather than re-tuned
+
+**Tension.** The brief requires corpus cases to execute in milliseconds. Case
+01 at 50,000 iterations per worker takes roughly a second per run unpatched
+and around four seconds once the correct fix -- a lock -- serialises 400,000
+increments across eight threads. Pinned serial, a 500-run verification of the
+*fixed* case takes over half an hour. That is three orders of magnitude over
+the stated budget, and the fix makes it worse rather than better.
+
+Re-tuning it downward would invalidate the baseline measurement already taken
+against it, and the two are not comparable across a case change.
+
+**Chosen.** Leave case 01 as measured for this session, order it **last** in
+the agent run, and record the problem with a concrete remedy rather than
+quietly absorbing it.
+
+**Why.** The measurements taken so far are internally consistent: the corpus
+baseline, the baseline arm and the agent arm all see the same case. Changing
+it mid-session would produce a results table whose rows were measured against
+different code, which is worse than a table with one honestly-flagged
+expensive row. Ordering it last means a truncated run loses only this case.
+
+The tension is real and was created by an earlier fix: case 01 was raised from
+25,000 to 50,000 iterations (D-009) so that its nondeterminism would be
+intrinsic rather than manufactured by harness concurrency. That was the right
+call for validity and the wrong one for cost, and both cannot be had with a
+GIL race -- the race needs each worker's loop to outlast the 5 ms switch
+interval, which sets a floor on how cheap the case can be.
+
+**Remedy for the next session.** Either drop the thread count from 8 to 2-3
+(fewer threads still interleave, and the lock contention that makes the fixed
+version slow scales with thread count), or accept a lower serial flake rate
+and pin the case at a modest worker count where the rate is still non-zero.
+Re-measure the corpus baseline and both arms afterwards; do not mix.
