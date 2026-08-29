@@ -324,7 +324,23 @@ def run_agent_case(
         outcome.resumed_from = checkpoint.describe()
 
         # -- CONFIRM ---------------------------------------------------------
-        if checkpoint.confirm is not None:
+        # A checkpointed measurement is only reusable if it is at least as
+        # large as the one this run would take. A smaller sample -- a stale
+        # checkpoint from a cheaper configuration -- would silently weaken the
+        # evidence every later step rests on. Caught in practice: a unit test
+        # leaked a 60-run CONFIRM into a case whose real budget is 200.
+        reusable = (
+            checkpoint.confirm is not None
+            and checkpoint.confirm.runs >= config.confirm_runs
+        )
+        if checkpoint.confirm is not None and not reusable:
+            outcome.resumed_from += (
+                f" (discarded a {checkpoint.confirm.runs}-run CONFIRM: "
+                f"smaller than this run's {config.confirm_runs})"
+            )
+            checkpoint.confirm = None
+
+        if reusable:
             confirm = checkpoint.confirm
         else:
             confirm = runner.measure(

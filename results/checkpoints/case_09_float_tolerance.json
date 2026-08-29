@@ -1,0 +1,33 @@
+{
+  "case": "case_09_float_tolerance",
+  "model": "gemini-3.6-flash",
+  "updated_at": "2026-08-29T18:47:37Z",
+  "confirm": {
+    "case": "case_09_float_tolerance",
+    "runs": 200,
+    "failures": 44,
+    "errors": 0,
+    "flake_rate": 0.22,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 156,
+      "fail": 44
+    },
+    "signatures": {
+      "pass": 156,
+      "AssertionError at test_billing.py:24: assert <f> == <f>": 44
+    },
+    "distinct_signatures": 1,
+    "wall_s": 19.63,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": ""
+}

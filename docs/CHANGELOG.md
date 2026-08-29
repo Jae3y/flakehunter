@@ -765,3 +765,103 @@ The CPU change still stands on its own reasoning, but it was made for a reason
 that did not apply, and D-011 now says so rather than being quietly edited.
 
 21 validator tests pass, five covering the two new checks.
+
+---
+
+## 008 — Designing around a 20-request/day ceiling
+
+**Date:** 2026-08-29 (unattended run)
+**Constraint:** Google AI Studio free tier, no billing —
+`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, **20 requests per day per
+model**. This is now treated as a design constraint rather than an obstacle.
+
+### The waste
+
+Cases 02, 03, 05 and 11 had each spent requests and then hit the cap mid-loop.
+Everything they had established was discarded, so the next attempt re-spent
+requests rediscovering it.
+
+| Case | Tokens spent before ERROR | What was thrown away |
+|---|---|---|
+| 02 | 3,219 | CONFIRM + 1 hypothesis round |
+| 03 | 3,518 | CONFIRM + 1 hypothesis round |
+| 05 | 4,496 | CONFIRM + 1 round **including a completed experiment** |
+| 11 | 3,562 | CONFIRM + 1 round (on `gemini-3.5-flash`) |
+
+### Two changes
+
+**Checkpoint/resume.** After every round the loop persists the CONFIRM
+measurement, hypotheses, experiments, eliminated classes and history to
+`results/checkpoints/<case>.json`. A resumed case skips CONFIRM — free of
+requests, but minutes of CPU — and begins from what is already ruled out.
+
+Two rules stop it doing harm:
+
+*Provenance.* LLM-derived state is restored **only when the checkpoint came
+from the same model**. A flake rate is a property of the code and survives a
+model change; a hypothesis is a property of the model that proposed it.
+Inheriting one across models would make the agent arm a silent blend while the
+baseline is a single model — the confound D-013 and D-015 exist to prevent,
+arriving through a cache rather than a decision. Cases 07 and 11 had rounds on
+`gemini-3.5-flash`; their reasoning was discarded and only CONFIRM kept.
+
+*Sample size.* A checkpointed CONFIRM is reused only if it is at least as large
+as the run's own budget. Caught in practice: a unit test leaked a **60-run**
+CONFIRM into case 06, whose real budget is 200. Reusing it would have quietly
+weakened the evidence every later step rests on.
+
+Also: a round counts as completed only if its **experiment actually ran**. A
+round that produced hypotheses and then died has established nothing, so cases
+02, 03 and 04 seeded at `rounds_completed=0` despite having hypotheses on
+record.
+
+**One request per round instead of two.** Hypothesis generation and experiment
+design were separate calls. The hypothesis schema already required a
+`discriminating_prediction` per candidate, so the model was reasoning about
+what would separate the candidates and then, in a second call, being asked to
+choose a separator from a summary of reasoning it no longer had in front of it.
+Merged into `ROUND_SCHEMA`.
+
+| | Before | After |
+|---|---|---|
+| Per round | 2 requests | **1** |
+| One-round success | 3 requests | **2** |
+| Cases per daily budget | ~4–6 | **~8–10** |
+
+### Measured effect, same day
+
+Case 05 resumed from its seeded checkpoint and reached **round 3 with 2
+experiments and 1 eliminated class** before the cap landed again — where the
+previous attempt had reached round 1. Its checkpoint now carries that state
+forward.
+
+State preserved across today's cutoff:
+
+| Case | CONFIRM | Rounds done | Eliminated |
+|---|---|---|---|
+| 02 test order | 67/200 | 0 | — |
+| 03 port collision | 56/200 | 0 | — |
+| 04 clock | 14/200 | 0 | — |
+| **05 set iteration** | 14/200 | **2** | `hash_iteration_order` |
+| 07 network timeout | 54/200 | 0 | — |
+| 09 float tolerance | 44/200 | 0 | — |
+| 11 cache leak | 62/200 | 0 | — |
+
+Every one of those CONFIRM measurements is a repeat-execution batch that no
+future attempt has to pay for again.
+
+### Coverage, stated plainly
+
+The agent arm has **1 case complete** (case 12, PENDING approval) out of 11
+attemptable. Nine are checkpointed mid-flight; case 01 is excluded for runtime
+(D-012). Attempts were ordered to spread across root-cause classes rather than
+numerically, so partial coverage shows breadth rather than five variations of
+one failure type.
+
+**The baseline finding does not depend on any of this.** Claimed 12/12 →
+verified 10 → legitimate 10/12 is measured entirely from the baseline arm and
+the validator, neither of which needs the agent to have run. Case 01's
+unparseable patch and case 07's 24.5%-under-load mask stand as anchors
+regardless of agent coverage.
+
+9 stuck-loop and checkpoint tests pass; 82 tests overall.

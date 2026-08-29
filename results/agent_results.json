@@ -1,5 +1,5 @@
 {
-  "measured_at": "2026-08-29T18:47:17Z",
+  "measured_at": "2026-08-29T18:47:38Z",
   "model": "gemini-3.6-flash",
   "trace_run_id": "agent-20260829T184647Z",
   "usage": {
@@ -350,6 +350,51 @@
       },
       "approval_dir": null,
       "resumed_from": "resuming: confirm 14/200"
+    },
+    {
+      "case": "case_09_float_tolerance",
+      "status": "ERROR",
+      "expected_class": "float_tolerance",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_09_float_tolerance",
+        "runs": 200,
+        "failures": 44,
+        "errors": 0,
+        "flake_rate": 0.22,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 156,
+          "fail": 44
+        },
+        "signatures": {
+          "pass": 156,
+          "AssertionError at test_billing.py:24: assert <f> == <f>": 44
+        },
+        "distinct_signatures": 1,
+        "wall_s": 19.63,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 20.9,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null,
+      "resumed_from": "no checkpoint"
     }
   ]
 }

@@ -205,3 +205,79 @@ def test_the_stuck_run_leaves_a_readable_trajectory(scripted_run) -> None:
     agents = {record["agent_name"] for record in records}
     assert "agent.round" in agents
     assert [r["turn_id"] for r in records] == list(range(len(records)))
+
+
+class TestCheckpointResume:
+    """Progress survives a run being cut off, and stale state does not.
+
+    Free tier is 20 requests/day/model, so a case killed mid-loop must not
+    re-spend requests rediscovering what it already established.
+    """
+
+    def test_a_run_writes_a_checkpoint(self, scripted_run) -> None:
+        client, executor, runner, config, tracer, tmp_path = scripted_run
+
+        run_agent_case(
+            CASE, client, executor, runner, config, tmp_path / "approval", tracer.run_id
+        )
+
+        path = config.checkpoint_root / f"{CASE.name}.json"
+        assert path.exists(), "no checkpoint written"
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        assert saved["confirm"]["runs"] == config.confirm_runs
+        assert saved["model"] == client.model
+
+    def test_resuming_skips_confirm(self, scripted_run) -> None:
+        """CONFIRM costs no requests but minutes of CPU; do not repeat it."""
+        client, executor, runner, config, tracer, tmp_path = scripted_run
+        run_agent_case(
+            CASE, client, executor, runner, config, tmp_path / "approval", tracer.run_id
+        )
+
+        second = run_agent_case(
+            CASE, client, executor, runner, config, tmp_path / "approval", tracer.run_id
+        )
+
+        assert "resuming" in second.resumed_from
+        assert "confirm" in second.resumed_from
+
+    def test_another_models_reasoning_is_not_inherited(self, scripted_run) -> None:
+        """A checkpoint from a different model contributes CONFIRM only."""
+        client, executor, runner, config, tracer, tmp_path = scripted_run
+        run_agent_case(
+            CASE, client, executor, runner, config, tmp_path / "approval", tracer.run_id
+        )
+
+        path = config.checkpoint_root / f"{CASE.name}.json"
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        saved["model"] = "some/other-model"
+        path.write_text(json.dumps(saved), encoding="utf-8")
+
+        from src.agent.checkpoint import load_checkpoint
+
+        restored = load_checkpoint(CASE.name, client.model, config.checkpoint_root)
+        assert restored is not None
+        assert restored.confirm is not None, "CONFIRM is model-independent"
+        assert not restored.llm_state_usable
+        assert restored.hypotheses == []
+        assert restored.eliminated == []
+
+    def test_an_undersized_confirm_is_discarded(self, scripted_run) -> None:
+        """A stale checkpoint must not weaken the evidence silently."""
+        client, executor, runner, config, tracer, tmp_path = scripted_run
+        run_agent_case(
+            CASE, client, executor, runner, config, tmp_path / "approval", tracer.run_id
+        )
+
+        path = config.checkpoint_root / f"{CASE.name}.json"
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        saved["confirm"]["runs"] = 10
+        saved["confirm"]["failures"] = 2
+        path.write_text(json.dumps(saved), encoding="utf-8")
+
+        outcome = run_agent_case(
+            CASE, client, executor, runner, config, tmp_path / "approval", tracer.run_id
+        )
+
+        assert "discarded a 10-run CONFIRM" in outcome.resumed_from
+        assert outcome.confirm_report.runs == config.confirm_runs
