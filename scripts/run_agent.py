@@ -39,16 +39,29 @@ EXCLUDED = {"case_00_smoke"}
 
 
 def discover_cases(only: list[str] | None) -> list[Path]:
-    """Corpus cases in numeric order, smoke case excluded."""
-    cases = sorted(
-        path
-        for path in CORPUS.iterdir()
+    """Corpus cases, smoke case excluded.
+
+    When ``only`` is given, its order is preserved rather than re-sorted. A
+    long run can be interrupted, so being able to put the cases that matter
+    most at the front is worth more than alphabetical tidiness.
+    """
+    available = {
+        path.name: path
+        for path in sorted(CORPUS.iterdir())
         if path.is_dir() and path.name.startswith("case_") and path.name not in EXCLUDED
-    )
-    if only:
-        wanted = {name.strip() for name in only}
-        cases = [c for c in cases if c.name in wanted or c.name.split("_")[1] in wanted]
-    return cases
+    }
+    if not only:
+        return list(available.values())
+
+    selected: list[Path] = []
+    for name in only:
+        key = name.strip()
+        match = available.get(key) or next(
+            (p for n, p in available.items() if n.split("_")[1] == key), None
+        )
+        if match is not None and match not in selected:
+            selected.append(match)
+    return selected
 
 
 def main() -> int:

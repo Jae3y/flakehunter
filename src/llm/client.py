@@ -76,12 +76,31 @@ class LLMResponse:
         return self.completion_tokens + self.thinking_tokens
 
     def json(self) -> Any:
-        """Parse the reply as JSON, tolerating a markdown code fence."""
+        """Parse the reply as JSON, tolerating a markdown code fence.
+
+        Raises:
+            ValueError: If the reply will not parse, naming truncation as
+                the cause when the model hit its output ceiling.
+        """
         text = self.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[-1]
             text = text.rsplit("```", 1)[0]
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            # Truncation and malformed output want different fixes: one is a
+            # budget problem, the other a prompt problem. Name which it was.
+            if self.finish_reason == "MAX_TOKENS":
+                raise ValueError(
+                    f"reply was truncated at the output ceiling after "
+                    f"{self.billed_output_tokens} output tokens; "
+                    f"raise max_output_tokens"
+                ) from exc
+            raise ValueError(
+                f"reply was not valid JSON ({exc}); "
+                f"finish={self.finish_reason}, {len(text)} chars"
+            ) from exc
 
 
 class GeminiClient:
@@ -92,9 +111,10 @@ class GeminiClient:
         model: Model identifier. Defaults to ``FLAKEHUNTER_MODEL`` then
             :data:`DEFAULT_MODEL`.
         api_key: Credential. Defaults to ``GEMINI_API_KEY``.
-        max_output_tokens: Ceiling per call. Generous by default because
-            reasoning tokens are drawn from the same budget, and a budget spent
-            entirely on reasoning returns empty text.
+        max_output_tokens: Ceiling per call. Generous by default: patches
+            carry the complete new contents of every changed file, and Gemini
+            draws reasoning tokens from this same budget, so a value tuned for
+            the visible answer truncates the reply mid-JSON.
     """
 
     def __init__(
@@ -102,7 +122,7 @@ class GeminiClient:
         tracer: Tracer,
         model: str | None = None,
         api_key: str | None = None,
-        max_output_tokens: int = 8192,
+        max_output_tokens: int = 32768,
     ) -> None:
         self.tracer = tracer
         self.model = model or os.environ.get("FLAKEHUNTER_MODEL") or DEFAULT_MODEL
@@ -169,6 +189,20 @@ class GeminiClient:
                 instruction_chars=len(full_instruction),
             )
             response = self._send(payload, turn)
+
+            # A reply cut off at the budget is unusable when it is structured:
+            # the JSON simply ends mid-string. Retry once with more room rather
+            # than surfacing a parse error the caller cannot act on.
+            if response.finish_reason == "MAX_TOKENS":
+                widened = payload["generationConfig"]["maxOutputTokens"] * 2
+                turn.reflect(
+                    f"{turn.reflection}\nreply hit the output ceiling "
+                    f"({payload['generationConfig']['maxOutputTokens']}); "
+                    f"retrying with {widened}".strip()
+                )
+                payload["generationConfig"]["maxOutputTokens"] = widened
+                response = self._send(payload, turn)
+
             turn.respond(
                 stdout=response.text,
                 exit_code=0,
