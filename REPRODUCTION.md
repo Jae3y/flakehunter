@@ -36,7 +36,7 @@ Build takes **~25 s** cold, most of it `pip install` of four pinned packages.
 docker compose run --rm flakehunter python -m pytest tests -q
 ```
 
-52 tests, **~8 s**.
+73 tests, **~50 s** (some drive the sandbox and agent loop end to end).
 
 ```bash
 docker compose run --rm flakehunter python scripts/phase0_gate.py
@@ -163,7 +163,7 @@ Recorded as observed, on the reference machine.
 | Step | Wall clock |
 |---|---|
 | `docker compose build` (cold) | ~25 s |
-| Unit tests (52) | 8 s |
+| Unit tests (73) | 50 s |
 | Phase 0 gate | ~2 min |
 | Isolation probe | ~10 s |
 | LLM provider check | ~30 s |

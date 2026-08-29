@@ -159,7 +159,9 @@ corpus. Five tests, all passing:
 - produces **no patch** and reaches no approval directory
 - leaves a contiguous, readable trajectory
 
-**57 tests pass** overall.
+**73 tests pass** overall, including 16 that drive the validator directly —
+both that it accepts a legitimate fix containing a retry, and that it rejects
+each cheat it exists for.
 
 ---
 
