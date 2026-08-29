@@ -1,6 +1,6 @@
 # Results
 
-Generated 2026-08-29T07:40:45Z.
+Generated 2026-08-29T18:24:38Z.
 
 Primary metric: **residual flake rate** — failures per 500 runs after the fix,
 target zero. Cost is in tokens, not dollars (`DECISIONS.md` D-007).
@@ -46,32 +46,39 @@ see `DECISIONS.md` D-013.
 
 ## The comparison that matters
 
-### Claimed versus verified
+### Claimed versus verified versus legitimate
 
-The baseline returned a patch for **12/12** cases —
-it asserts a fix every time, and reports a confidence with it.
-Re-running each patch 500 times shows **10** of those
-12 actually reached zero failures.
+The baseline returned a patch for **12/12** cases and
+attached a confidence to every one. Two further questions then narrow it:
+did the patch actually work, and is it a fix at all?
 
-| Case | Baseline confidence | Residual after its fix | Actually fixed? |
-|---|---|---|---|
-| 01 race condition | high | 0.00% (unsound — every run errored) | **no** |
-| 02 test order dependency | high | 0.00% | yes |
-| 03 port collision | high | 0.00% | yes |
-| 04 clock dependence | high | 0.00% | yes |
-| 05 hash iteration order | high | 0.00% | yes |
-| 06 unseeded randomness | high | 0.00% | yes |
-| 07 network timeout | high | 0.80% | **no** |
-| 08 tempfile collision | high | 0.00% | yes |
-| 09 float tolerance | high | 0.00% | yes |
-| 10 async ordering | high | 0.00% | yes |
-| 11 cache leak | high | 0.00% | yes |
-| 12 masking trap | high | 0.00% | yes |
+| Case | Confidence | Residual after fix | Verified? | Validator | Why not |
+|---|---|---|---|---|---|
+| 01 race condition | high | 0.00% *(unsound)* | **no** | **REJECTS** | patch_parses: app/counter.py line 16: invalid syntax |
+| 02 test order dependency | high | 0.00% | yes | accepts | — |
+| 03 port collision | high | 0.00% | yes | accepts | — |
+| 04 clock dependence | high | 0.00% | yes | accepts | — |
+| 05 hash iteration order | high | 0.00% | yes | accepts | — |
+| 06 unseeded randomness | high | 0.00% | yes | accepts | — |
+| 07 network timeout | high | 0.80% | **no** | **REJECTS** | survives_stress: 49/200 failures at 32 workers (4x oversubscription... |
+| 08 tempfile collision | high | 0.00% | yes | accepts | — |
+| 09 float tolerance | high | 0.00% | yes | accepts | — |
+| 10 async ordering | high | 0.00% | yes | accepts | — |
+| 11 cache leak | high | 0.00% | yes | accepts | — |
+| 12 masking trap | high | 0.00% | yes | accepts | — |
 
-**2 of 12 confident fixes were not fixes.**
-The baseline had no way to tell which. Every one of them was returned
-with the same kind of confidence as the ones that worked, because a
-system that never executes the test has nothing to distinguish them by.
+**Claimed 12/12 → verified 10 → legitimate 10/12.**
 
-**Anchor case — 07 network timeout.** The baseline identified the root cause correctly, reported `high` confidence, and produced a patch that still fails **0.80%** of the time. That is a handful of failures in 500 runs — invisible to one execution, and exactly the kind of residual flakiness that gets a test re-run rather than fixed. The agent reached the same case and declined to declare success, which is the correct answer where a false green is the failure mode.
+Every patch carried the same confidence. Nothing in the model's own
+output separated the ones that worked from the ones that did not —
+that separation came entirely from running the tests and from the
+validator, neither of which the baseline has.
+
+**Anchor — 07 network timeout.** The baseline identified the root cause
+correctly, reported `high` confidence, and
+produced a patch that still fails **0.80%**
+of the time at the normal worker count. Under CPU oversubscription the
+validator drives that far higher: this is not an incomplete fix but a
+**confirmed mask**, one that widens the timing window rather than
+closing it. A single execution would have shown it green.
 

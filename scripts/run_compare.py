@@ -37,6 +37,7 @@ def main() -> int:
         results / "baseline_results.json",
         agent_files,
         excluded=EXCLUDED,
+        revalidation_path=results / "revalidation.json",
     )
 
     stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

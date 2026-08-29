@@ -10,6 +10,295 @@
   },
   "results": [
     {
+      "case": "case_02_test_order_dependency",
+      "status": "ERROR",
+      "expected_class": "test_order_dependency",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_02_test_order_dependency",
+        "runs": 200,
+        "failures": 67,
+        "errors": 0,
+        "flake_rate": 0.335,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 133,
+          "fail": 67
+        },
+        "signatures": {
+          "pass": 133,
+          "AssertionError at test_registry.py:9: unexpected plugins present: <seq>": 67
+        },
+        "distinct_signatures": 1,
+        "wall_s": 11.97,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [
+        {
+          "round": 1,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "test_order_dependency",
+              "reasoning": "The module app.metrics calls register('metrics') at import time, mutating the process-global _PLUGINS list. Because conftest.py randomises test execution order via string hash values, test_metrics_plugin_registers_itself sometimes executes prior to test_registry_is_empty_until_a_plugin_is_installed, causing global state pollution.",
+              "discriminating_prediction": "Running test_metrics_plugin_registers_itself followed directly by test_registry_is_empty_until_a_plugin_is_installed in a single process will result in a 100% failure rate showing ['metrics'] present in the registry.",
+              "status": "proposed",
+              "evidence": []
+            },
+            {
+              "id": "H2",
+              "root_cause_class": "race_condition",
+              "reasoning": "Concurrent worker processes or threads executing tests in parallel access and mutate the shared _PLUGINS list without locks or isolation. If multiple tests execute simultaneously within the same memory space, reads and writes to the global list race against each other.",
+              "discriminating_prediction": "Running tests sequentially in a single worker process (-n 0) will completely eliminate the failure even when test_metrics_plugin_registers_itself executes before test_registry_is_empty_until_a_plugin_is_installed.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        }
+      ],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 28.7,
+      "tokens": {
+        "prompt": 1110,
+        "output": 2109,
+        "total": 3219
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_03_port_collision",
+      "status": "ERROR",
+      "expected_class": "resource_leak_port_collision",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_03_port_collision",
+        "runs": 200,
+        "failures": 56,
+        "errors": 0,
+        "flake_rate": 0.28,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 144,
+          "fail": 56
+        },
+        "signatures": {
+          "pass": 144,
+          "AssertionError at test_net.py:37: bind failed for <n> service(s): <seq> Address already in use": 56
+        },
+        "distinct_signatures": 1,
+        "wall_s": 11.71,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [
+        {
+          "round": 1,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "resource_leak_port_collision",
+              "reasoning": "find_free_port tests port availability by binding and immediately closing a probe socket, creating a time-of-check to time-of-use (TOCTOU) gap. Because the probe socket is closed before Service.start() binds the actual socket, the port is released and returned to the OS pool where concurrent threads or processes can acquire it.",
+              "discriminating_prediction": "If find_free_port is changed to return an open bound socket directly to Service.start() without closing it first, the failure rate will drop to 0%.",
+              "status": "proposed",
+              "evidence": []
+            },
+            {
+              "id": "H2",
+              "root_cause_class": "race_condition",
+              "reasoning": "The test uses a threading barrier to force two threads to invoke service.start() simultaneously. Because find_free_port contains no lock or synchronization, both threads scan starting at BASE_PORT and read the port as available at the exact same time.",
+              "discriminating_prediction": "If a process-wide threading Lock is placed around the call to find_free_port() inside Service.start(), the test will pass when run sequentially or multithreaded within a single process, but will still fail if multiple pytest workers run simultaneously.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        }
+      ],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 29.5,
+      "tokens": {
+        "prompt": 1343,
+        "output": 2175,
+        "total": 3518
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_04_clock_dependence",
+      "status": "ERROR",
+      "expected_class": "clock_dependence",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_04_clock_dependence",
+        "runs": 200,
+        "failures": 14,
+        "errors": 0,
+        "flake_rate": 0.07,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 186,
+          "fail": 14
+        },
+        "signatures": {
+          "pass": 186,
+          "AssertionError at test_ratelimit.py:22: the second hit landed in a different bucket": 14
+        },
+        "distinct_signatures": 1,
+        "wall_s": 16.08,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 16.7,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_05_hash_iteration_order",
+      "status": "ERROR",
+      "expected_class": "hash_iteration_order",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 2,
+      "confirm": {
+        "case": "case_05_hash_iteration_order",
+        "runs": 200,
+        "failures": 14,
+        "errors": 0,
+        "flake_rate": 0.07,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 186,
+          "fail": 14
+        },
+        "signatures": {
+          "pass": 186,
+          "AssertionError at test_config.py:19: assert <str> == <str>": 14
+        },
+        "distinct_signatures": 1,
+        "wall_s": 12.5,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [
+        {
+          "round": 1,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "hash_iteration_order",
+              "reasoning": "The function `resolve` iterates over `sources`, which is passed as a `set[Source]`. Set iteration order in Python depends on object hashes and hash seeds across process invocations; when the `legacy` source (which yields 'staging') happens to be iterated first, `resolve` returns 'staging' instead of 'production'.",
+              "discriminating_prediction": "Sorting `sources` by name or setting a fixed `PYTHONHASHSEED` will consistently yield the exact same outcome on every run, whereas changing worker count or running in isolation will not eliminate the failure rate.",
+              "status": "proposed",
+              "evidence": []
+            },
+            {
+              "id": "H2",
+              "root_cause_class": "test_order_dependency",
+              "reasoning": "The global module-level `SOURCES` variable could be mutated by another test executing prior to `test_environment_resolves_to_production` in the same worker process.",
+              "discriminating_prediction": "Running `test_environment_resolves_to_production` in complete isolation will achieve a 0% failure rate if caused by test order dependency, but will still fail non-deterministically if caused by set iteration order.",
+              "status": "proposed",
+              "evidence": []
+            },
+            {
+              "id": "H3",
+              "root_cause_class": "race_condition",
+              "reasoning": "Concurrent test execution across 8 workers might cause inter-process or multi-thread state corruption if `SOURCES` or global state is modified concurrently without locking.",
+              "discriminating_prediction": "Running the test suite sequentially on a single worker will completely eliminate failures if a race condition is responsible, but will fail to eliminate failures under set iteration randomization.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        }
+      ],
+      "experiments": [
+        {
+          "experiment": {
+            "manipulation": "pin_hash_seed",
+            "parameter": "0",
+            "targets_hypothesis": "H1",
+            "rationale": "Fixing PYTHONHASHSEED standardizes Python set iteration order across test runs. If H1 is correct, pinning the hash seed eliminates the random iteration order and thus eliminates flakiness, whereas H2 and H3 predict flakiness depends on test order or concurrent execution state.",
+            "predicted_effect": "eliminated"
+          },
+          "baseline_rate": 0.07,
+          "observed_rate": 0.4733,
+          "actual_effect": "increased",
+          "matches_prediction": false,
+          "unsupported": false,
+          "note": "",
+          "verification": {
+            "case": "case_05_hash_iteration_order@pin_hash_seed",
+            "runs": 150,
+            "failures": 71,
+            "errors": 0,
+            "flake_rate": 0.4733,
+            "is_sound": true,
+            "outcomes": {
+              "fail": 71,
+              "pass": 79
+            },
+            "signatures": {
+              "AssertionError at test_config.py:19: assert <str> == <str>": 71,
+              "pass": 79
+            },
+            "distinct_signatures": 1,
+            "wall_s": 11.05,
+            "workers": 8,
+            "strategy": "spawn",
+            "env_overrides": {
+              "PYTHONHASHSEED": "0"
+            }
+          }
+        }
+      ],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 48.3,
+      "tokens": {
+        "prompt": 1634,
+        "output": 2862,
+        "total": 4496
+      },
+      "approval_dir": null
+    },
+    {
       "case": "case_07_network_timeout",
       "status": "UNRESOLVED",
       "expected_class": "network_timeout_no_retry",
@@ -383,296 +672,9 @@
           "test_conditions_unchanged: test_client.py: SERVICE_WORK_S was changed, altering the conditions the failure appears under"
         ],
         "stress": null
-      }
-    },
-    {
-      "case": "case_02_test_order_dependency",
-      "status": "ERROR",
-      "expected_class": "test_order_dependency",
-      "concluded_class": null,
-      "cause_identified": false,
-      "rounds": 1,
-      "confirm": {
-        "case": "case_02_test_order_dependency",
-        "runs": 200,
-        "failures": 67,
-        "errors": 0,
-        "flake_rate": 0.335,
-        "is_sound": true,
-        "outcomes": {
-          "pass": 133,
-          "fail": 67
-        },
-        "signatures": {
-          "pass": 133,
-          "AssertionError at test_registry.py:9: unexpected plugins present: <seq>": 67
-        },
-        "distinct_signatures": 1,
-        "wall_s": 11.97,
-        "workers": 8,
-        "strategy": "spawn",
-        "env_overrides": {}
       },
-      "hypotheses": [
-        {
-          "round": 1,
-          "items": [
-            {
-              "id": "H1",
-              "root_cause_class": "test_order_dependency",
-              "reasoning": "The module app.metrics calls register('metrics') at import time, mutating the process-global _PLUGINS list. Because conftest.py randomises test execution order via string hash values, test_metrics_plugin_registers_itself sometimes executes prior to test_registry_is_empty_until_a_plugin_is_installed, causing global state pollution.",
-              "discriminating_prediction": "Running test_metrics_plugin_registers_itself followed directly by test_registry_is_empty_until_a_plugin_is_installed in a single process will result in a 100% failure rate showing ['metrics'] present in the registry.",
-              "status": "proposed",
-              "evidence": []
-            },
-            {
-              "id": "H2",
-              "root_cause_class": "race_condition",
-              "reasoning": "Concurrent worker processes or threads executing tests in parallel access and mutate the shared _PLUGINS list without locks or isolation. If multiple tests execute simultaneously within the same memory space, reads and writes to the global list race against each other.",
-              "discriminating_prediction": "Running tests sequentially in a single worker process (-n 0) will completely eliminate the failure even when test_metrics_plugin_registers_itself executes before test_registry_is_empty_until_a_plugin_is_installed.",
-              "status": "proposed",
-              "evidence": []
-            }
-          ]
-        }
-      ],
-      "experiments": [],
-      "validations": [],
-      "patch": null,
-      "verification": null,
-      "residual_flake_rate": null,
-      "stuck_reason": null,
-      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 28.7,
-      "tokens": {
-        "prompt": 1110,
-        "output": 2109,
-        "total": 3219
-      },
-      "approval_dir": null
-    },
-    {
-      "case": "case_03_port_collision",
-      "status": "ERROR",
-      "expected_class": "resource_leak_port_collision",
-      "concluded_class": null,
-      "cause_identified": false,
-      "rounds": 1,
-      "confirm": {
-        "case": "case_03_port_collision",
-        "runs": 200,
-        "failures": 56,
-        "errors": 0,
-        "flake_rate": 0.28,
-        "is_sound": true,
-        "outcomes": {
-          "pass": 144,
-          "fail": 56
-        },
-        "signatures": {
-          "pass": 144,
-          "AssertionError at test_net.py:37: bind failed for <n> service(s): <seq> Address already in use": 56
-        },
-        "distinct_signatures": 1,
-        "wall_s": 11.71,
-        "workers": 8,
-        "strategy": "spawn",
-        "env_overrides": {}
-      },
-      "hypotheses": [
-        {
-          "round": 1,
-          "items": [
-            {
-              "id": "H1",
-              "root_cause_class": "resource_leak_port_collision",
-              "reasoning": "find_free_port tests port availability by binding and immediately closing a probe socket, creating a time-of-check to time-of-use (TOCTOU) gap. Because the probe socket is closed before Service.start() binds the actual socket, the port is released and returned to the OS pool where concurrent threads or processes can acquire it.",
-              "discriminating_prediction": "If find_free_port is changed to return an open bound socket directly to Service.start() without closing it first, the failure rate will drop to 0%.",
-              "status": "proposed",
-              "evidence": []
-            },
-            {
-              "id": "H2",
-              "root_cause_class": "race_condition",
-              "reasoning": "The test uses a threading barrier to force two threads to invoke service.start() simultaneously. Because find_free_port contains no lock or synchronization, both threads scan starting at BASE_PORT and read the port as available at the exact same time.",
-              "discriminating_prediction": "If a process-wide threading Lock is placed around the call to find_free_port() inside Service.start(), the test will pass when run sequentially or multithreaded within a single process, but will still fail if multiple pytest workers run simultaneously.",
-              "status": "proposed",
-              "evidence": []
-            }
-          ]
-        }
-      ],
-      "experiments": [],
-      "validations": [],
-      "patch": null,
-      "verification": null,
-      "residual_flake_rate": null,
-      "stuck_reason": null,
-      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 29.5,
-      "tokens": {
-        "prompt": 1343,
-        "output": 2175,
-        "total": 3518
-      },
-      "approval_dir": null
-    },
-    {
-      "case": "case_04_clock_dependence",
-      "status": "ERROR",
-      "expected_class": "clock_dependence",
-      "concluded_class": null,
-      "cause_identified": false,
-      "rounds": 1,
-      "confirm": {
-        "case": "case_04_clock_dependence",
-        "runs": 200,
-        "failures": 14,
-        "errors": 0,
-        "flake_rate": 0.07,
-        "is_sound": true,
-        "outcomes": {
-          "pass": 186,
-          "fail": 14
-        },
-        "signatures": {
-          "pass": 186,
-          "AssertionError at test_ratelimit.py:22: the second hit landed in a different bucket": 14
-        },
-        "distinct_signatures": 1,
-        "wall_s": 16.08,
-        "workers": 8,
-        "strategy": "spawn",
-        "env_overrides": {}
-      },
-      "hypotheses": [],
-      "experiments": [],
-      "validations": [],
-      "patch": null,
-      "verification": null,
-      "residual_flake_rate": null,
-      "stuck_reason": null,
-      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 16.7,
-      "tokens": {
-        "prompt": 0,
-        "output": 0,
-        "total": 0
-      },
-      "approval_dir": null
-    },
-    {
-      "case": "case_05_hash_iteration_order",
-      "status": "ERROR",
-      "expected_class": "hash_iteration_order",
-      "concluded_class": null,
-      "cause_identified": false,
-      "rounds": 2,
-      "confirm": {
-        "case": "case_05_hash_iteration_order",
-        "runs": 200,
-        "failures": 14,
-        "errors": 0,
-        "flake_rate": 0.07,
-        "is_sound": true,
-        "outcomes": {
-          "pass": 186,
-          "fail": 14
-        },
-        "signatures": {
-          "pass": 186,
-          "AssertionError at test_config.py:19: assert <str> == <str>": 14
-        },
-        "distinct_signatures": 1,
-        "wall_s": 12.5,
-        "workers": 8,
-        "strategy": "spawn",
-        "env_overrides": {}
-      },
-      "hypotheses": [
-        {
-          "round": 1,
-          "items": [
-            {
-              "id": "H1",
-              "root_cause_class": "hash_iteration_order",
-              "reasoning": "The function `resolve` iterates over `sources`, which is passed as a `set[Source]`. Set iteration order in Python depends on object hashes and hash seeds across process invocations; when the `legacy` source (which yields 'staging') happens to be iterated first, `resolve` returns 'staging' instead of 'production'.",
-              "discriminating_prediction": "Sorting `sources` by name or setting a fixed `PYTHONHASHSEED` will consistently yield the exact same outcome on every run, whereas changing worker count or running in isolation will not eliminate the failure rate.",
-              "status": "proposed",
-              "evidence": []
-            },
-            {
-              "id": "H2",
-              "root_cause_class": "test_order_dependency",
-              "reasoning": "The global module-level `SOURCES` variable could be mutated by another test executing prior to `test_environment_resolves_to_production` in the same worker process.",
-              "discriminating_prediction": "Running `test_environment_resolves_to_production` in complete isolation will achieve a 0% failure rate if caused by test order dependency, but will still fail non-deterministically if caused by set iteration order.",
-              "status": "proposed",
-              "evidence": []
-            },
-            {
-              "id": "H3",
-              "root_cause_class": "race_condition",
-              "reasoning": "Concurrent test execution across 8 workers might cause inter-process or multi-thread state corruption if `SOURCES` or global state is modified concurrently without locking.",
-              "discriminating_prediction": "Running the test suite sequentially on a single worker will completely eliminate failures if a race condition is responsible, but will fail to eliminate failures under set iteration randomization.",
-              "status": "proposed",
-              "evidence": []
-            }
-          ]
-        }
-      ],
-      "experiments": [
-        {
-          "experiment": {
-            "manipulation": "pin_hash_seed",
-            "parameter": "0",
-            "targets_hypothesis": "H1",
-            "rationale": "Fixing PYTHONHASHSEED standardizes Python set iteration order across test runs. If H1 is correct, pinning the hash seed eliminates the random iteration order and thus eliminates flakiness, whereas H2 and H3 predict flakiness depends on test order or concurrent execution state.",
-            "predicted_effect": "eliminated"
-          },
-          "baseline_rate": 0.07,
-          "observed_rate": 0.4733,
-          "actual_effect": "increased",
-          "matches_prediction": false,
-          "unsupported": false,
-          "note": "",
-          "verification": {
-            "case": "case_05_hash_iteration_order@pin_hash_seed",
-            "runs": 150,
-            "failures": 71,
-            "errors": 0,
-            "flake_rate": 0.4733,
-            "is_sound": true,
-            "outcomes": {
-              "fail": 71,
-              "pass": 79
-            },
-            "signatures": {
-              "AssertionError at test_config.py:19: assert <str> == <str>": 71,
-              "pass": 79
-            },
-            "distinct_signatures": 1,
-            "wall_s": 11.05,
-            "workers": 8,
-            "strategy": "spawn",
-            "env_overrides": {
-              "PYTHONHASHSEED": "0"
-            }
-          }
-        }
-      ],
-      "validations": [],
-      "patch": null,
-      "verification": null,
-      "residual_flake_rate": null,
-      "stuck_reason": null,
-      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 48.3,
-      "tokens": {
-        "prompt": 1634,
-        "output": 2862,
-        "total": 4496
-      },
-      "approval_dir": null
+      "retry_requested": true,
+      "retry_blocked_by": "A fresh attempt was launched after the patch was rejected on re-validation, but the daily quota was exhausted before its first call. The UNRESOLVED status recorded here belongs to the attempt whose patch was rejected; a clean re-attempt has not run."
     }
   ]
 }

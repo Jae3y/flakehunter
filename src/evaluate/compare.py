@@ -62,6 +62,9 @@ class ComparisonRow:
     validator_rejections: int
     agent_note: str
     agent_revalidation_failed: bool = False
+    baseline_validator_passed: bool | None = None
+    baseline_validator_reason: str = ""
+
 
     @property
     def baseline_verified(self) -> bool:
@@ -104,6 +107,7 @@ def build_rows(
     baseline_path: Path,
     agent_paths: list[Path],
     excluded: set[str] | None = None,
+    revalidation_path: Path | None = None,
 ) -> tuple[list[ComparisonRow], dict[str, Any]]:
     """Join both arms per case.
 
@@ -119,6 +123,15 @@ def build_rows(
     """
     baseline_doc = _load(baseline_path)
     baseline_by_case = {r["case"]: r for r in baseline_doc.get("results", [])}
+
+    # Validator verdicts from the retroactive re-check. "Verified at zero
+    # failures" and "legitimate" are different claims, and the second is the
+    # one the anti-cheat rules exist to answer.
+    revalidation: dict[str, dict[str, Any]] = {}
+    if revalidation_path is not None:
+        for finding in _load(revalidation_path).get("findings", []):
+            if finding.get("arm") == "baseline":
+                revalidation[finding["case"]] = finding
 
     agent_by_case: dict[str, dict[str, Any]] = {}
     agent_models: dict[str, str] = {}
@@ -184,6 +197,16 @@ def build_rows(
                     agent.get("revalidation")
                     and not agent["revalidation"].get("passed", True)
                 ),
+                baseline_validator_passed=(
+                    revalidation[case_dir.name]["passed"]
+                    if case_dir.name in revalidation
+                    else None
+                ),
+                baseline_validator_reason=(
+                    "; ".join(revalidation[case_dir.name].get("rejections", []))
+                    if case_dir.name in revalidation
+                    else ""
+                ),
             )
         )
 
@@ -234,68 +257,84 @@ def render_table(rows: list[ComparisonRow]) -> str:
 
 
 def render_claimed_vs_verified(rows: list[ComparisonRow]) -> str:
-    """The comparison the project is actually about.
+    """The comparison this project is actually about.
 
-    The baseline asserts a fix for every case and is usually right. Verification
-    is what separates the cases where it was right from the ones where it was
-    not -- and the baseline, by construction, cannot run it.
+    Three claims, not two, and they narrow at each step:
+
+    * **Claimed** -- a patch was produced, with a confidence attached.
+    * **Verified** -- re-running it 500 times gave zero failures.
+    * **Legitimate** -- the anti-cheat validator accepts it.
+
+    A patch can be claimed and not verified (case 07: 0.80% residual), or
+    verified and not legitimate (a mask whose window is simply wider than the
+    observation), or verified against code that never compiled.
     """
     claimed = [r for r in rows if r.baseline_claimed]
     verified = [r for r in claimed if r.baseline_verified]
-    unverified = [r for r in claimed if not r.baseline_verified]
+    judged = [r for r in claimed if r.baseline_validator_passed is not None]
+    legitimate = [r for r in judged if r.baseline_validator_passed]
 
     lines = [
-        "### Claimed versus verified",
+        "### Claimed versus verified versus legitimate",
         "",
-        f"The baseline returned a patch for **{len(claimed)}/{len(rows)}** cases —",
-        "it asserts a fix every time, and reports a confidence with it.",
-        f"Re-running each patch 500 times shows **{len(verified)}** of those",
-        f"{len(claimed)} actually reached zero failures.",
+        f"The baseline returned a patch for **{len(claimed)}/{len(rows)}** cases and",
+        "attached a confidence to every one. Two further questions then narrow it:",
+        "did the patch actually work, and is it a fix at all?",
         "",
-        "| Case | Baseline confidence | Residual after its fix | Actually fixed? |",
-        "|---|---|---|---|",
+        "| Case | Confidence | Residual after fix | Verified? | Validator | Why not |",
+        "|---|---|---|---|---|---|",
     ]
     for row in claimed:
-        mark = "yes" if row.baseline_verified else "**no**"
+        label = row.case.replace("case_", "").replace("_", " ")
         detail = _rate(row.baseline_residual)
         if row.baseline_sound is False:
-            detail += " (unsound — every run errored)"
+            detail += " *(unsound)*"
+        verified_mark = "yes" if row.baseline_verified else "**no**"
+        if row.baseline_validator_passed is None:
+            validator = "—"
+        elif row.baseline_validator_passed:
+            validator = "accepts"
+        else:
+            validator = "**REJECTS**"
+        reason = row.baseline_validator_reason
+        if len(reason) > 70:
+            reason = reason[:67].rstrip() + "..."
         lines.append(
-            f"| {row.case.replace('case_', '').replace('_', ' ')} "
-            f"| {row.baseline_confidence} | {detail} | {mark} |"
+            f"| {label} | {row.baseline_confidence} | {detail} "
+            f"| {verified_mark} | {validator} | {reason or '—'} |"
         )
 
     lines += [
         "",
-        f"**{len(unverified)} of {len(claimed)} confident fixes were not fixes.**",
-        "The baseline had no way to tell which. Every one of them was returned",
-        "with the same kind of confidence as the ones that worked, because a",
-        "system that never executes the test has nothing to distinguish them by.",
+        f"**Claimed {len(claimed)}/{len(rows)} → verified {len(verified)} → "
+        f"legitimate {len(legitimate)}/{len(judged)}.**",
+        "",
+        "Every patch carried the same confidence. Nothing in the model's own",
+        "output separated the ones that worked from the ones that did not —",
+        "that separation came entirely from running the tests and from the",
+        "validator, neither of which the baseline has.",
         "",
     ]
 
-    anchor = next(
-        (
-            r
-            for r in unverified
-            if r.baseline_residual not in (None, 0.0)
-        ),
-        None,
-    )
-    if anchor is not None:
+    masked = [
+        r
+        for r in judged
+        if not r.baseline_validator_passed and r.baseline_residual not in (None, 0.0)
+    ]
+    if masked:
+        anchor = masked[0]
+        label = anchor.case.replace("case_", "").replace("_", " ")
         lines += [
-            f"**Anchor case — {anchor.case.replace('case_', '').replace('_', ' ')}.** "
-            f"The baseline identified the root cause correctly, reported "
-            f"`{anchor.baseline_confidence}` confidence, and produced a patch that "
-            f"still fails **{_rate(anchor.baseline_residual)}** of the time. That is "
-            "a handful of failures in 500 runs — invisible to one execution, and "
-            "exactly the kind of residual flakiness that gets a test re-run rather "
-            "than fixed. The agent reached "
-            f"{'the same case and declined to declare success' if anchor.agent_status == 'UNRESOLVED' else 'it'}"
-            ", which is the correct answer where a false green is the failure mode.",
+            f"**Anchor — {label}.** The baseline identified the root cause",
+            f"correctly, reported `{anchor.baseline_confidence}` confidence, and",
+            f"produced a patch that still fails **{_rate(anchor.baseline_residual)}**",
+            "of the time at the normal worker count. Under CPU oversubscription the",
+            "validator drives that far higher: this is not an incomplete fix but a",
+            "**confirmed mask**, one that widens the timing window rather than",
+            "closing it. A single execution would have shown it green.",
             "",
         ]
-    return "\n".join(lines)
+    return chr(10).join(lines)
 
 
 def render_summary(rows: list[ComparisonRow], meta: dict[str, Any]) -> str:
