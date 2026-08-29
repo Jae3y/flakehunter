@@ -37,6 +37,7 @@ from src.agent.experiments import (
     MANIPULATIONS,
     Experiment,
     ExperimentOutcome,
+    discover_node_ids,
     run_experiment,
 )
 from src.agent.hypotheses import Hypothesis, propose_hypotheses
@@ -141,8 +142,14 @@ def design_experiment(
     case_name: str,
     hypotheses: list[Hypothesis],
     history: list[str],
+    node_ids: list[str] | None = None,
 ) -> Experiment:
-    """Ask for the manipulation that best separates the top hypotheses."""
+    """Ask for the manipulation that best separates the top hypotheses.
+
+    ``node_ids`` are the case's real tests. Supplying them stops the model
+    inventing a plausible name for ``isolate_test``; an invented one makes
+    pytest collect nothing, which is not evidence about anything.
+    """
     catalogue = "\n".join(f"  {name}: {text}" for name, text in MANIPULATIONS.items())
     candidates = "\n".join(
         f"  {h.id} [{h.root_cause_class}]: {h.reasoning}\n"
@@ -150,8 +157,14 @@ def design_experiment(
         for h in hypotheses
     )
     prior = "\n".join(f"  - {line}" for line in history) or "  (none yet)"
+    tests = "\n".join(f"  {n}" for n in (node_ids or [])) or "  (unknown)"
 
     instruction = f"""Case: {case_name}
+
+The tests in this case, by exact node id. For isolate_test or
+force_test_order the parameter MUST be one of these verbatim -- an id that
+does not exist makes pytest collect nothing, which proves nothing:
+{tests}
 
 Competing hypotheses:
 {candidates}
@@ -348,7 +361,9 @@ def run_agent_case(
             seen_signatures.add(signature)
 
             # -- EXPERIMENT + OBSERVE ----------------------------------------
-            experiment = design_experiment(client, case.name, hypotheses, history)
+            experiment = design_experiment(
+                client, case.name, hypotheses, history, discover_node_ids(project)
+            )
             result: ExperimentOutcome = run_experiment(
                 experiment,
                 project,

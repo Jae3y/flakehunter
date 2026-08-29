@@ -1,38 +1,38 @@
 {
-  "measured_at": "2026-08-29T06:38:04Z",
-  "model": "gemini-3.7-flash",
-  "trace_run_id": "agent-20260829T063020Z",
+  "measured_at": "2026-08-29T06:56:33Z",
+  "model": "gemini-3.5-flash",
+  "trace_run_id": "agent-20260829T063840Z",
   "usage": {
-    "calls": 1,
-    "prompt_tokens": 1207,
-    "output_tokens": 822,
-    "total_tokens": 2029
+    "calls": 14,
+    "prompt_tokens": 15024,
+    "output_tokens": 50006,
+    "total_tokens": 65030
   },
   "results": [
     {
       "case": "case_07_network_timeout",
-      "status": "ERROR",
+      "status": "UNRESOLVED",
       "expected_class": "network_timeout_no_retry",
-      "concluded_class": null,
+      "concluded_class": "test_order_dependency",
       "cause_identified": false,
-      "rounds": 1,
+      "rounds": 5,
       "confirm": {
         "case": "case_07_network_timeout",
         "runs": 200,
-        "failures": 38,
+        "failures": 54,
         "errors": 0,
-        "flake_rate": 0.19,
+        "flake_rate": 0.27,
         "is_sound": true,
         "outcomes": {
-          "pass": 162,
-          "fail": 38
+          "pass": 146,
+          "fail": 54
         },
         "signatures": {
-          "pass": 162,
-          "TimeoutError at client.py:35: timed out": 38
+          "pass": 146,
+          "TimeoutError at client.py:35: timed out": 54
         },
         "distinct_signatures": 1,
-        "wall_s": 21.44,
+        "wall_s": 19.17,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -44,16 +44,496 @@
             {
               "id": "H1",
               "root_cause_class": "network_timeout_no_retry",
-              "reasoning": "The client uses a 5ms timeout with no retry mechanism, while the mock server intentionally sleeps for 4.75ms before responding. Under concurrent test runs with 8 workers, OS thread scheduling jitter frequently exceeds the narrow 0.25ms margin, causing socket.recv() to raise TimeoutError.",
-              "discriminating_prediction": "Increasing client timeout TIMEOUT_S (e.g., from 0.005s to 0.05s) or reducing SERVICE_WORK_S (e.g., to 0.001s) drops the failure rate to 0%, whereas modifying thread startup or running serially without adjusting timeouts/latencies will not eliminate jitter-induced timeouts entirely.",
+              "reasoning": "The client uses an extremely tight timeout of 5ms (TIMEOUT_S = 0.005), while the mock service sleeps for 4.75ms (SERVICE_WORK_S = 0.00475) before responding. This leaves only 0.25ms for connection establishment, thread scheduling, and network I/O, which is frequently exceeded under the load of 8 concurrent test workers.",
+              "discriminating_prediction": "Increasing the client's timeout to 100ms (TIMEOUT_S = 0.1) or reducing the service's sleep time to 1ms (SERVICE_WORK_S = 0.001) will reduce the failure rate to 0% over 200 runs, even when running with 8 or more concurrent workers.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "clock_dependence",
+              "reasoning": "The client timeout is set to 5ms (TIMEOUT_S = 0.005) while the mock service sleeps for 4.75ms (SERVICE_WORK_S = 0.00475) before responding. This leaves an extremely narrow window of 0.25ms for socket connection, transmission, and OS thread scheduling, making the test highly dependent on real-time execution speed.",
+              "discriminating_prediction": "Increasing the client timeout (TIMEOUT_S) to 1.0 second or reducing the service sleep time (SERVICE_WORK_S) to 0.0 seconds will completely eliminate the failures (0% failure rate), even when running with multiple concurrent workers.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "publication_ordering",
+              "reasoning": "The status_service fixture yields the port immediately after thread.start(), before the background thread has actually run and called accept(). If the client connects before the server thread is scheduled, the connection is queued in the OS backlog, causing the client's tight 5ms timeout to expire before the server can accept and respond.",
+              "discriminating_prediction": "Waiting on a threading.Event set by the server thread right before it enters the accept loop, before yielding in the fixture, will significantly reduce or eliminate the failures.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "race_condition",
+              "reasoning": "The client's timeout (5ms) is extremely close to the service's processing sleep (4.75ms), leaving only 0.25ms for thread scheduling and network I/O. Because the client and service threads run concurrently without synchronization, any scheduling jitter or delay in context-switching the service thread causes the client to exceed its timeout and fail.",
+              "discriminating_prediction": "Reducing the service's simulated work time (SERVICE_WORK_S) to 0.001s (1ms) or increasing the client's timeout (TIMEOUT_S) to 0.05s (50ms) will reduce the failure rate to 0%.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "test_order_dependency",
+              "reasoning": "The test only fails when run alongside other tests in the suite, as isolating it completely eliminates the failure. This suggests a preceding test on the same worker mutates global state (such as calling `socket.setdefaulttimeout` or mocking socket behavior) which persists and causes the tight 5ms timeout to trigger prematurely.",
+              "discriminating_prediction": "Explicitly resetting the global socket default timeout using `socket.setdefaulttimeout(None)` at the start of this test will eliminate the failures even when run in the full suite.",
               "status": "proposed",
               "evidence": []
             },
             {
               "id": "H2",
-              "root_cause_class": "race_condition",
-              "reasoning": "The test fixture starts a background server thread and yields immediately before verifying the listener has entered accept(). If the client attempts to connect and exchange data before the server thread is scheduled, the connection or initial handshake stalls and times out.",
-              "discriminating_prediction": "Adding a synchronization barrier ensuring the server loop is actively blocked on accept() before yielding in status_service will eliminate the failures, even while keeping TIMEOUT_S at 0.005s and SERVICE_WORK_S at 0.00475s.",
+              "root_cause_class": "resource_leak_port_collision",
+              "reasoning": "Other tests in the suite may leak sockets or file descriptors. When run sequentially on the same worker, this accumulation of unclosed resources can degrade socket creation and connection performance, pushing the execution time past the extremely tight 5ms timeout.",
+              "discriminating_prediction": "Running the test suite with a tool that forces each test to run in a freshly spawned process (such as `pytest-forked`) will eliminate the failures.",
+              "status": "proposed",
+              "evidence": []
+            }
+          ]
+        }
+      ],
+      "experiments": [
+        {
+          "experiment": {
+            "manipulation": "serialize_execution",
+            "parameter": "",
+            "targets_hypothesis": "network_timeout_no_retry",
+            "rationale": "Serializing execution removes the CPU contention and scheduling delays caused by running 8 concurrent test workers. If H1 is correct, the 0.25ms margin between the mock service sleep and the client timeout will be sufficient in the absence of contention, eliminating the timeout-induced failures.",
+            "predicted_effect": "eliminated"
+          },
+          "baseline_rate": 0.27,
+          "observed_rate": 0.3667,
+          "actual_effect": "unchanged",
+          "matches_prediction": false,
+          "unsupported": false,
+          "note": "",
+          "verification": {
+            "case": "case_07_network_timeout@serialize_execution",
+            "runs": 150,
+            "failures": 55,
+            "errors": 0,
+            "flake_rate": 0.3667,
+            "is_sound": true,
+            "outcomes": {
+              "fail": 55,
+              "pass": 95
+            },
+            "signatures": {
+              "TimeoutError at client.py:35: timed out": 55,
+              "pass": 95
+            },
+            "distinct_signatures": 1,
+            "wall_s": 89.5,
+            "workers": 1,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        },
+        {
+          "experiment": {
+            "manipulation": "amplify_contention",
+            "parameter": "2",
+            "targets_hypothesis": "clock_dependence",
+            "rationale": "If the test is highly sensitive to a 0.25ms timing window due to clock dependence, oversubscribing the CPU via amplify_contention will increase scheduling delays and CPU contention, thereby increasing the likelihood of missing the timeout and increasing the flake rate.",
+            "predicted_effect": "increased"
+          },
+          "baseline_rate": 0.27,
+          "observed_rate": 0.2067,
+          "actual_effect": "unchanged",
+          "matches_prediction": false,
+          "unsupported": false,
+          "note": "",
+          "verification": {
+            "case": "case_07_network_timeout@amplify_contention",
+            "runs": 150,
+            "failures": 31,
+            "errors": 0,
+            "flake_rate": 0.2067,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 119,
+              "fail": 31
+            },
+            "signatures": {
+              "pass": 119,
+              "TimeoutError at client.py:35: timed out": 31
+            },
+            "distinct_signatures": 1,
+            "wall_s": 10.71,
+            "workers": 16,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        },
+        {
+          "experiment": {
+            "manipulation": "amplify_contention",
+            "parameter": "4",
+            "targets_hypothesis": "publication_ordering",
+            "rationale": "If the flake is caused by a thread scheduling race where the server thread fails to start and call accept() within the client's 5ms timeout, then significantly oversubscribing the CPU (factor of 4) will increase scheduling delays for the server thread, thereby increasing the flake rate.",
+            "predicted_effect": "increased"
+          },
+          "baseline_rate": 0.27,
+          "observed_rate": 0.2467,
+          "actual_effect": "unchanged",
+          "matches_prediction": false,
+          "unsupported": false,
+          "note": "",
+          "verification": {
+            "case": "case_07_network_timeout@amplify_contention",
+            "runs": 150,
+            "failures": 37,
+            "errors": 0,
+            "flake_rate": 0.2467,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 113,
+              "fail": 37
+            },
+            "signatures": {
+              "pass": 113,
+              "TimeoutError at client.py:35: timed out": 37
+            },
+            "distinct_signatures": 1,
+            "wall_s": 10.71,
+            "workers": 32,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        },
+        {
+          "experiment": {
+            "manipulation": "isolate_test",
+            "parameter": "test_network_timeout",
+            "targets_hypothesis": "race_condition",
+            "rationale": "If the flakiness is due to an internal race condition between the client and service threads within the test itself (as H1 suggests), isolating the test to run on its own will not resolve this timing window, and the flake rate will remain unchanged.",
+            "predicted_effect": "unchanged"
+          },
+          "baseline_rate": 0.27,
+          "observed_rate": 0.0,
+          "actual_effect": "eliminated",
+          "matches_prediction": false,
+          "unsupported": false,
+          "note": "",
+          "verification": {
+            "case": "case_07_network_timeout@isolate_test",
+            "runs": 150,
+            "failures": 0,
+            "errors": 150,
+            "flake_rate": 0.0,
+            "is_sound": false,
+            "outcomes": {
+              "error": 150
+            },
+            "signatures": {
+              "error: pytest exit 4": 150
+            },
+            "distinct_signatures": 1,
+            "wall_s": 12.93,
+            "workers": 8,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        },
+        {
+          "experiment": {
+            "manipulation": "force_test_order",
+            "parameter": "test_network_timeout,test_other_1,test_other_2",
+            "targets_hypothesis": "test_order_dependency",
+            "rationale": "By forcing the flaky test to run first in the test suite, we prevent any other tests from running beforehand and mutating the global socket timeout state. If H1 is correct, this will eliminate the failure.",
+            "predicted_effect": "eliminated"
+          },
+          "baseline_rate": 0.27,
+          "observed_rate": 0.0,
+          "actual_effect": "eliminated",
+          "matches_prediction": true,
+          "unsupported": false,
+          "note": "",
+          "verification": {
+            "case": "case_07_network_timeout@force_test_order",
+            "runs": 150,
+            "failures": 0,
+            "errors": 150,
+            "flake_rate": 0.0,
+            "is_sound": false,
+            "outcomes": {
+              "error": 150
+            },
+            "signatures": {
+              "error: pytest exit 4": 150
+            },
+            "distinct_signatures": 1,
+            "wall_s": 7.62,
+            "workers": 8,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        }
+      ],
+      "validations": [
+        {
+          "attempt": 1,
+          "round": 5,
+          "passed": false,
+          "checks": [
+            {
+              "name": "protected_paths",
+              "passed": true,
+              "detail": "no protected file touched"
+            },
+            {
+              "name": "modifies_source",
+              "passed": true,
+              "detail": "source modified: ['app/client.py']"
+            },
+            {
+              "name": "assertions_intact",
+              "passed": true,
+              "detail": "no assertion removed or weakened"
+            },
+            {
+              "name": "test_not_disabled",
+              "passed": true,
+              "detail": "no skip/xfail/retry marker added"
+            },
+            {
+              "name": "comparison_not_loosened",
+              "passed": true,
+              "detail": "no comparison loosened"
+            },
+            {
+              "name": "not_only_sleep",
+              "passed": true,
+              "detail": "2 substantive line(s) added, 0 sleep(s)"
+            },
+            {
+              "name": "survives_stress",
+              "passed": false,
+              "detail": "49/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+            }
+          ],
+          "rejections": [
+            "survives_stress: 49/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+          ],
+          "stress": {
+            "case": "case_07_network_timeout@stress",
+            "runs": 200,
+            "failures": 49,
+            "errors": 0,
+            "flake_rate": 0.245,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 151,
+              "fail": 49
+            },
+            "signatures": {
+              "pass": 151,
+              "TimeoutError at client.py:36: timed out": 49
+            },
+            "distinct_signatures": 1,
+            "wall_s": 9.28,
+            "workers": 32,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        },
+        {
+          "attempt": 2,
+          "round": 5,
+          "passed": false,
+          "checks": [
+            {
+              "name": "protected_paths",
+              "passed": true,
+              "detail": "no protected file touched"
+            },
+            {
+              "name": "modifies_source",
+              "passed": false,
+              "detail": "only test files changed; a fix must change the code under test"
+            },
+            {
+              "name": "assertions_intact",
+              "passed": true,
+              "detail": "no assertion removed or weakened"
+            },
+            {
+              "name": "test_not_disabled",
+              "passed": true,
+              "detail": "no skip/xfail/retry marker added"
+            },
+            {
+              "name": "comparison_not_loosened",
+              "passed": true,
+              "detail": "no comparison loosened"
+            },
+            {
+              "name": "not_only_sleep",
+              "passed": true,
+              "detail": "8 substantive line(s) added, 0 sleep(s)"
+            }
+          ],
+          "rejections": [
+            "modifies_source: only test files changed; a fix must change the code under test"
+          ],
+          "stress": null
+        },
+        {
+          "attempt": 3,
+          "round": 5,
+          "passed": false,
+          "checks": [
+            {
+              "name": "protected_paths",
+              "passed": true,
+              "detail": "no protected file touched"
+            },
+            {
+              "name": "modifies_source",
+              "passed": true,
+              "detail": "source modified: ['app/client.py']"
+            },
+            {
+              "name": "assertions_intact",
+              "passed": true,
+              "detail": "no assertion removed or weakened"
+            },
+            {
+              "name": "test_not_disabled",
+              "passed": true,
+              "detail": "no skip/xfail/retry marker added"
+            },
+            {
+              "name": "comparison_not_loosened",
+              "passed": true,
+              "detail": "no comparison loosened"
+            },
+            {
+              "name": "not_only_sleep",
+              "passed": true,
+              "detail": "1 substantive line(s) added, 0 sleep(s)"
+            },
+            {
+              "name": "survives_stress",
+              "passed": false,
+              "detail": "49/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+            }
+          ],
+          "rejections": [
+            "survives_stress: 49/200 failures at 32 workers (4x oversubscription) -- the failure returns under load, so the fix widened the window rather than closing it"
+          ],
+          "stress": {
+            "case": "case_07_network_timeout@stress",
+            "runs": 200,
+            "failures": 49,
+            "errors": 0,
+            "flake_rate": 0.245,
+            "is_sound": true,
+            "outcomes": {
+              "pass": 151,
+              "fail": 49
+            },
+            "signatures": {
+              "pass": 151,
+              "TimeoutError at client.py:36: timed out": 49
+            },
+            "distinct_signatures": 1,
+            "wall_s": 10.08,
+            "workers": 32,
+            "strategy": "spawn",
+            "env_overrides": {}
+          }
+        }
+      ],
+      "patch": {
+        "root_cause_class": "test_order_dependency",
+        "root_cause_explanation": "A preceding test in the suite mutates the global socket default timeout (via socket.setdefaulttimeout), which persists and causes the accepted connection socket in the status service thread to inherit an extremely short timeout, leading to premature timeouts. Resetting the default timeout to None during client initialization ensures the accepted socket behaves normally.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/client.py",
+            "new_content": "\"\"\"Client for the internal status service.\"\"\"\n\nfrom __future__ import annotations\n\nimport socket\n\n#: How long to wait for the service before giving up.\nTIMEOUT_S = 0.005\n\n\nclass StatusClient:\n    \"\"\"Fetches a status line from the service over TCP.\n\n    A single attempt is made. Whatever the network or the peer's scheduler\n    happens to be doing at that moment decides whether the call succeeds.\n    \"\"\"\n\n    def __init__(self, host: str, port: int, timeout_s: float = TIMEOUT_S) -> None:\n        socket.setdefaulttimeout(None)\n        self.host = host\n        self.port = port\n        self.timeout_s = timeout_s\n\n    def fetch_status(self) -> bytes:\n        \"\"\"Return the service's status line.\n\n        Raises:\n            OSError: On connect failure or timeout.\n        \"\"\"\n        sock = socket.create_connection(\n            (self.host, self.port), timeout=self.timeout_s\n        )\n        try:\n            sock.settimeout(self.timeout_s)\n            sock.sendall(b\"STATUS\\n\")\n            return sock.recv(64)\n        finally:\n            sock.close()\n",
+            "rationale": "Resetting socket.setdefaulttimeout(None) in the client's constructor ensures that any global socket timeout mutated by preceding tests is cleared before the test service accepts the connection, preventing the accepted socket from inheriting an unexpectedly low timeout."
+          }
+        ]
+      },
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": "exhausted 5 hypothesis rounds without a fix that survived verification",
+      "error": null,
+      "wall_s": 1006.8,
+      "tokens": {
+        "prompt": 13930,
+        "output": 47538,
+        "total": 61468
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_11_cache_leak",
+      "status": "ERROR",
+      "expected_class": "cache_leak",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_11_cache_leak",
+        "runs": 200,
+        "failures": 62,
+        "errors": 0,
+        "flake_rate": 0.31,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 138,
+          "fail": 62
+        },
+        "signatures": {
+          "pass": 138,
+          "AssertionError at test_pricing.py:29: assert <n> == <n>": 62
+        },
+        "distinct_signatures": 1,
+        "wall_s": 12.3,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [
+        {
+          "round": 1,
+          "items": [
+            {
+              "id": "H1",
+              "root_cause_class": "cache_leak",
+              "reasoning": "The `price_for` function is memoised using `lru_cache`, but `set_rate` updates the underlying `_RATES` dictionary without invalidating or clearing this cache. If `price_for('basic')` is called before `set_rate` is called, the cache retains the stale value.",
+              "discriminating_prediction": "If `set_rate` is modified to clear the cache of `price_for` (e.g., by calling `price_for.cache_clear()`), the test suite will pass 100% of the time in all execution orders.",
+              "status": "proposed",
+              "evidence": []
+            },
+            {
+              "id": "H2",
+              "root_cause_class": "test_order_dependency",
+              "reasoning": "The tests share global state via the `lru_cache` of `price_for`. If `test_price_lookup_is_memoised` runs first, it populates the cache with the default rate, causing `test_promotional_rate_takes_effect` to fail when it asserts the new rate.",
+              "discriminating_prediction": "Running `test_promotional_rate_takes_effect` in isolation (or ensuring `test_price_cache_can_be_cleared` always runs before it) will result in a 0% failure rate.",
               "status": "proposed",
               "evidence": []
             }
@@ -66,12 +546,56 @@
       "verification": null,
       "residual_flake_rate": null,
       "stuck_reason": null,
-      "error": "gemini-3.7-flash call failed: HTTP 503: This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
-      "wall_s": 463.9,
+      "error": "gemini-3.5-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 53.1,
       "tokens": {
-        "prompt": 1207,
-        "output": 822,
-        "total": 2029
+        "prompt": 1094,
+        "output": 2468,
+        "total": 3562
+      },
+      "approval_dir": null
+    },
+    {
+      "case": "case_02_test_order_dependency",
+      "status": "ERROR",
+      "expected_class": "test_order_dependency",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_02_test_order_dependency",
+        "runs": 200,
+        "failures": 85,
+        "errors": 0,
+        "flake_rate": 0.425,
+        "is_sound": true,
+        "outcomes": {
+          "fail": 85,
+          "pass": 115
+        },
+        "signatures": {
+          "AssertionError at test_registry.py:9: unexpected plugins present: <seq>": 85,
+          "pass": 115
+        },
+        "distinct_signatures": 1,
+        "wall_s": 11.58,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.5-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 12.8,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
       },
       "approval_dir": null
     }

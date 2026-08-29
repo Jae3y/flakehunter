@@ -120,6 +120,27 @@ EXPERIMENT_SCHEMA: dict = {
 }
 
 
+def discover_node_ids(project: Path) -> list[str]:
+    """List the test node ids a case actually defines.
+
+    Given to the model when it designs an experiment. Without this it invents
+    plausible-looking names -- a live run produced
+    ``isolate_test(test_network_timeout)`` against a case whose only test is
+    ``test_status_is_fetched_from_a_healthy_service`` -- and an invented node id
+    makes pytest collect nothing, which used to read as "the failure was
+    eliminated".
+    """
+    node_ids: list[str] = []
+    for path in sorted(project.rglob("test_*.py")):
+        relative = path.relative_to(project)
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("def test_"):
+                name = stripped[len("def ") :].split("(", 1)[0]
+                node_ids.append(f"{relative}::{name}")
+    return node_ids
+
+
 @dataclass(slots=True)
 class Experiment:
     """A designed manipulation, before it has been run."""
@@ -173,6 +194,12 @@ class ExperimentOutcome:
 
     def summary(self) -> str:
         """One-line summary for the trajectory reflection."""
+        if self.actual_effect == "invalid":
+            return (
+                f"{self.experiment.describe()}; INVALID -- {self.note} "
+                f"=> no evidence for or against "
+                f"{self.experiment.targets_hypothesis}"
+            )
         verdict = "CONFIRMS" if self.matches_prediction else "ELIMINATES"
         return (
             f"{self.experiment.describe()}; observed {self.actual_effect} "
@@ -298,6 +325,34 @@ def run_experiment(
         agent_name="agent.experiment",
     )
     observed = report.flake_rate
+
+    # An unsound batch is not evidence. If the manipulation stopped the test
+    # from running at all -- a node id that does not exist, a usage error --
+    # every run reports ERROR, no run reports FAIL, and the flake rate reads
+    # 0.0%. Read naively that looks like "eliminated", which is the single
+    # most dangerous misreading available to this loop: it manufactures
+    # support for whichever hypothesis the experiment happened to target.
+    #
+    # This is the same trap as counting an ERROR run as a passing one during
+    # verification, and it gets the same answer: errors are a broken
+    # measurement, never a result.
+    if not report.is_sound:
+        return ExperimentOutcome(
+            experiment=experiment,
+            baseline_rate=baseline_rate,
+            observed_rate=observed,
+            report=report,
+            actual_effect="invalid",
+            matches_prediction=False,
+            unsupported=True,
+            note=(
+                f"{report.errors}/{report.runs} runs errored, so the test never "
+                f"executed: this manipulation produced no evidence either way. "
+                f"Check the parameter -- a node id must match a real test."
+            ),
+            extras={"env": env, "pytest_args": args, "workers": effective_workers},
+        )
+
     actual = classify_effect(baseline_rate, observed)
 
     # "reduced" partially supports a prediction of "eliminated": the signal
