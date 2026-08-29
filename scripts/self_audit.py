@@ -149,18 +149,26 @@ def audit_corpus_untouched() -> Audit:
         return Audit("corpus unmodified by any patch", False, f"git unavailable: {exc}")
 
     approval = REPO_ROOT / "results" / "pending_approval"
-    packages = sorted(p.name for p in approval.glob("case_*")) if approval.exists() else []
+    packages = sorted(approval.glob("case_*")) if approval.exists() else []
 
-    return Audit(
-        "corpus unmodified by any patch",
-        not dirty,
-        (
-            f"corpus/ clean against HEAD; {len(packages)} patch(es) held in "
-            f"results/pending_approval/ awaiting approval: {packages}"
-        )
-        if not dirty
-        else f"corpus/ has uncommitted changes:\n{dirty}",
-    )
+    # A package carrying a rejection banner is a record of what the agent
+    # produced, not a patch awaiting approval. Counting the two together would
+    # overstate how much is ready for a human to apply.
+    live, rejected = [], []
+    for package in packages:
+        banner = package / "REVALIDATION.md"
+        if banner.exists() and "REJECTED" in banner.read_text(encoding="utf-8"):
+            rejected.append(package.name)
+        else:
+            live.append(package.name)
+
+    detail = f"corpus/ clean against HEAD; {len(live)} awaiting approval: {live}"
+    if rejected:
+        detail += f"; {len(rejected)} rejected on re-validation (do not apply): {rejected}"
+    if dirty:
+        detail = "corpus/ has uncommitted changes: " + dirty.replace(chr(10), "; ")
+
+    return Audit("corpus unmodified by any patch", not dirty, detail)
 
 
 def main() -> int:

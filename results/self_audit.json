@@ -2,21 +2,21 @@
   {
     "name": "changelog entries with measurements",
     "passed": true,
-    "evidence": "001: 18 measurements; 002: 68 measurements; 003: 67 measurements; 004: 17 measurements; 005: 15 measurements"
+    "evidence": "001: 18 measurements; 002: 68 measurements; 003: 67 measurements; 004: 17 measurements; 005: 15 measurements; 006: 9 measurements"
   },
   {
     "name": "decisions logged with reasoning",
     "passed": true,
-    "evidence": "14 entries, all four sections present"
+    "evidence": "15 entries, all four sections present"
   },
   {
     "name": "every case PENDING or UNRESOLVED",
     "passed": true,
-    "evidence": "2 ERROR, 1 UNRESOLVED"
+    "evidence": "4 ERROR, 1 UNRESOLVED"
   },
   {
     "name": "corpus unmodified by any patch",
     "passed": true,
-    "evidence": "corpus/ clean against HEAD; 1 patch(es) held in results/pending_approval/ awaiting approval: ['case_12_masking_trap']"
+    "evidence": "corpus/ clean against HEAD; 1 awaiting approval: ['case_12_masking_trap']; 1 rejected on re-validation (do not apply): ['case_07_network_timeout']"
   }
 ]
