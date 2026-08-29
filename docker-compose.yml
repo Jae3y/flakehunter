@@ -26,3 +26,34 @@ services:
       # Per-run scratch workdirs. RAM-backed for speed (we do ~26k runs per
       # evaluation) and guaranteed not to persist across container restarts.
       - /scratch:mode=1777,size=1g
+
+  # Corpus authoring only. Identical to `flakehunter` except that corpus/ is
+  # writable, so `scripts/measure_corpus.py` can record a measured baseline
+  # into each case's metadata.json.
+  #
+  # The agent and the evaluation never use this service. Keeping it separate is
+  # what lets the default service mount corpus/ read-only, so agent-authored
+  # code cannot alter the cases it is being measured against -- including the
+  # recorded baseline it would be compared to.
+  recorder:
+    build: .
+    image: flakehunter:phase0
+    init: true
+    stdin_open: true
+    tty: true
+    user: "1000:1000"
+    working_dir: /app
+    mem_limit: 4g
+    pids_limit: 512
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./scripts:/app/scripts:ro
+      - ./corpus:/app/corpus
+      - ./traces:/app/traces
+      - ./results:/app/results
+    tmpfs:
+      - /scratch:mode=1777,size=1g

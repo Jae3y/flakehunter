@@ -1,0 +1,29 @@
+{
+  "case": "case_08_tempfile_collision",
+  "root_cause_class": "tempfile_collision",
+  "summary": "Staging file name is predictable, so writers collide.",
+  "difficulty": "easy",
+  "true_fix_category": "use_unique_temp_names",
+  "true_fix": "Create the staging file with `tempfile.mkstemp` in the destination's directory, so every writer gets a private path and the rename stays on one filesystem.",
+  "nondeterminism_source": "The staging path is derived from the current second, so every concurrent writer in that second picks the same file. Whether that corrupts a write depends on the interleaving.",
+  "masking_fix_available": true,
+  "masking_fix": "Retry on failure, or serialise the writes in the test with a lock.",
+  "fix_touches": [
+    "app/cache.py"
+  ],
+  "baseline": {
+    "measured_at": "2026-08-29T00:16:09Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 27,
+    "flake_rate": 0.054,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 473,
+      "AssertionError at test_cache.py:39: <n> write(s) failed: <seq> No such file or directory: <str> -> <str>": 27
+    },
+    "wall_s": 30.07,
+    "sound": true
+  }
+}

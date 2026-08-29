@@ -1,0 +1,29 @@
+{
+  "case": "case_06_unseeded_randomness",
+  "root_cause_class": "unseeded_randomness",
+  "summary": "Shard assignment is drawn from the global RNG.",
+  "difficulty": "easy",
+  "true_fix_category": "make_the_algorithm_deterministic",
+  "true_fix": "Assign shards by a stable hash of the item -- e.g. `zlib.crc32(item.encode()) % shard_count` -- or take an injected `random.Random` the caller seeds.",
+  "nondeterminism_source": "`random.randrange` draws from the process-wide RNG, seeded from the OS at startup, so the layout differs on every call.",
+  "masking_fix_available": true,
+  "masking_fix": "Call `random.seed(0)` in the test. The assignment becomes repeatable for the test only; production stays unbalanced.",
+  "fix_touches": [
+    "app/sharding.py"
+  ],
+  "baseline": {
+    "measured_at": "2026-08-29T00:15:05Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 140,
+    "flake_rate": 0.28,
+    "distinct_signatures": 1,
+    "signatures": {
+      "AssertionError at test_sharding.py:16: an idle shard: <seq>": 140,
+      "pass": 360
+    },
+    "wall_s": 29.36,
+    "sound": true
+  }
+}

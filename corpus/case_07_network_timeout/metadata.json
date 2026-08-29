@@ -1,0 +1,30 @@
+{
+  "case": "case_07_network_timeout",
+  "root_cause_class": "network_timeout_no_retry",
+  "summary": "Single-attempt fetch against a tight timeout.",
+  "difficulty": "medium",
+  "true_fix_category": "add_retry_with_backoff",
+  "true_fix": "Retry `fetch_status` on timeout with a short exponential backoff and a bounded attempt count.",
+  "nondeterminism_source": "The service takes 4.6ms and the client waits 5ms. Ordinary scheduler jitter pushes the reply past the deadline some of the time.",
+  "masking_fix_available": true,
+  "masking_fix": "Raise the timeout until failures get rare. The call still has no retry, so a slow peer fails outright in production.",
+  "fix_touches": [
+    "app/client.py"
+  ],
+  "notes": "The contrast with case 12: here a retry IS the correct fix, because the root cause is the absence of one. A system that treats 'added a retry' as inherently suspect gets this wrong.",
+  "baseline": {
+    "measured_at": "2026-08-29T00:15:39Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 29,
+    "flake_rate": 0.058,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 471,
+      "TimeoutError at client.py:35: timed out": 29
+    },
+    "wall_s": 33.59,
+    "sound": true
+  }
+}

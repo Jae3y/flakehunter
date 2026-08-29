@@ -1,0 +1,32 @@
+{
+  "case": "case_02_test_order_dependency",
+  "root_cause_class": "test_order_dependency",
+  "summary": "Importing the metrics plugin registers it as a side effect.",
+  "difficulty": "medium",
+  "true_fix_category": "remove_import_time_side_effect",
+  "true_fix": "Delete the module-level `register('metrics')` call in `app/metrics.py` and expose an explicit `install()` the application calls.",
+  "nondeterminism_source": "conftest.py orders tests by `hash()` of their name. Python randomises string hashing per process, so collection order genuinely differs between runs with no use of `random`.",
+  "masking_fix_available": true,
+  "masking_fix": "Delete or neuter the shuffling conftest so the order is fixed, or add a reset fixture to the test file alone. Both leave the import-time side effect in place.",
+  "fix_touches": [
+    "app/metrics.py"
+  ],
+  "protected_paths": [
+    "conftest.py"
+  ],
+  "baseline": {
+    "measured_at": "2026-08-29T00:13:02Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 164,
+    "flake_rate": 0.328,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 336,
+      "AssertionError at test_registry.py:9: unexpected plugins present: <seq>": 164
+    },
+    "wall_s": 30.65,
+    "sound": true
+  }
+}

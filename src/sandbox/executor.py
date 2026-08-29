@@ -317,7 +317,7 @@ class SandboxExecutor:
         try:
             target = workdir / "project"
             shutil.copytree(source, target)
-            env = self._build_env(env_overrides)
+            env = self._build_env(env_overrides, workdir)
             args = self._pytest_args(pytest_args)
             if strategy is Strategy.SPAWN:
                 result = self._run_spawn(target, args, env, started_ns)
@@ -339,13 +339,27 @@ class SandboxExecutor:
         """
         return ["-q", "--no-header", "-p", "no:cacheprovider", *extra]
 
-    def _build_env(self, overrides: Mapping[str, str] | None) -> dict[str, str]:
-        """Assemble the child environment."""
+    def _build_env(
+        self,
+        overrides: Mapping[str, str] | None,
+        workdir: Path | None = None,
+    ) -> dict[str, str]:
+        """Assemble the child environment.
+
+        Each run gets a private ``TMPDIR``. Without it, code under test that
+        writes through ``tempfile.gettempdir()`` shares one directory with
+        every concurrently executing run, so a case about temp-file collisions
+        would measure *our* worker count rather than its own bug.
+        """
         env = dict(os.environ)
         # The orchestrator's credentials must never be visible to a test run.
         env.pop("ANTHROPIC_API_KEY", None)
         env.pop("ANTHROPIC_BASE_URL", None)
         env["PYTHONDONTWRITEBYTECODE"] = "0"
+        if workdir is not None:
+            private_tmp = workdir / "tmp"
+            private_tmp.mkdir(exist_ok=True)
+            env["TMPDIR"] = str(private_tmp)
         if overrides:
             env.update(overrides)
         return env

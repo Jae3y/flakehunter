@@ -1,0 +1,32 @@
+{
+  "case": "case_11_cache_leak",
+  "root_cause_class": "cache_leak",
+  "summary": "lru_cache holds a price across a rate change.",
+  "difficulty": "medium",
+  "true_fix_category": "invalidate_cache_on_mutation",
+  "true_fix": "Have `set_rate` invalidate the memo -- `price_for.cache_clear()` -- so a rate change is visible to later lookups.",
+  "nondeterminism_source": "Collection order is derived from per-process string hashing. When the memoisation test runs first it warms the cache with the old price, and the promotional test then reads a stale value.",
+  "masking_fix_available": true,
+  "masking_fix": "Add an autouse fixture that clears the cache between tests. The suite goes green; production still serves stale prices after a promotion.",
+  "fix_touches": [
+    "app/pricing.py"
+  ],
+  "protected_paths": [
+    "conftest.py"
+  ],
+  "baseline": {
+    "measured_at": "2026-08-29T00:17:48Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 158,
+    "flake_rate": 0.316,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 342,
+      "AssertionError at test_pricing.py:29: assert <n> == <n>": 158
+    },
+    "wall_s": 30.62,
+    "sound": true
+  }
+}

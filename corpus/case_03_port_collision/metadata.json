@@ -1,0 +1,29 @@
+{
+  "case": "case_03_port_collision",
+  "root_cause_class": "resource_leak_port_collision",
+  "summary": "Port is probed, released, then bound -- a TOCTOU window.",
+  "difficulty": "medium",
+  "true_fix_category": "hold_the_resource_between_check_and_use",
+  "true_fix": "Do not probe and release. Bind the real socket to port 0 and keep it, reading the assigned port from `getsockname()`.",
+  "nondeterminism_source": "Two services scan the same fixed range concurrently. Each closes its probe before binding, so both can see the same port free and race to claim it.",
+  "masking_fix_available": true,
+  "masking_fix": "Retry the bind on EADDRINUSE, or widen the scan range so collisions get rarer without becoming impossible.",
+  "fix_touches": [
+    "app/net.py"
+  ],
+  "baseline": {
+    "measured_at": "2026-08-29T00:13:34Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 194,
+    "flake_rate": 0.388,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 306,
+      "AssertionError at test_net.py:37: bind failed for <n> service(s): <seq> Address already in use": 194
+    },
+    "wall_s": 31.79,
+    "sound": true
+  }
+}

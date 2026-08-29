@@ -1,0 +1,30 @@
+{
+  "case": "case_05_hash_iteration_order",
+  "root_cause_class": "hash_iteration_order",
+  "summary": "Config sources live in a set, so precedence is arbitrary.",
+  "difficulty": "hard",
+  "true_fix_category": "impose_deterministic_ordering",
+  "true_fix": "Give sources an explicit precedence: resolve over an ordered sequence, or sort by a declared priority, rather than iterating a set.",
+  "nondeterminism_source": "`resolve` returns the first enabled source that defines the setting, iterating a set. Set order for these objects derives from identity hashing, which varies with each process's memory layout. Four sources agree on 'production'; one stale legacy source still reports 'staging' and wins whenever it lands first.",
+  "masking_fix_available": true,
+  "masking_fix": "Pin `PYTHONHASHSEED` for the test run, or drop the legacy source from the fixture. Both leave `resolve` picking arbitrarily in production.",
+  "fix_touches": [
+    "app/config.py"
+  ],
+  "notes": "One of the two lowest-rate cases. Uniform ordering would fail 20% of the time; identity hashing is biased enough that it fails far less, which is exactly what makes this kind of bug survive review.",
+  "baseline": {
+    "measured_at": "2026-08-29T00:14:36Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 11,
+    "flake_rate": 0.022,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 489,
+      "AssertionError at test_config.py:19: assert <str> == <str>": 11
+    },
+    "wall_s": 30.03,
+    "sound": true
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "case": "case_12_masking_trap",
+  "root_cause_class": "publication_ordering",
+  "summary": "The ready flag is set before the index is filled in.",
+  "difficulty": "hard",
+  "true_fix_category": "publish_atomically_after_construction",
+  "true_fix": "Build the index into a local dict, assign it to `self.index`, and only then set `ready` -- ideally via a `threading.Event` set after publication. A waiter can then never observe a partial index.",
+  "nondeterminism_source": "`_run` publishes an empty dict, flips `ready`, and fills the dict afterwards. Whether a waiter sees a complete index depends on where its poll lands inside the build.",
+  "masking_fix_available": true,
+  "masking_fix": "Sleep before asserting, or retry the assertion until it passes. Either makes 500 runs go green while leaving the publication race exactly where it was -- a slower machine or a bigger corpus brings it straight back.",
+  "fix_touches": [
+    "app/indexer.py"
+  ],
+  "notes": "This is the case that separates systems that verify from systems that look confident. The obvious fix removes the symptom and not the nondeterminism, and it will survive a 500-run verification.",
+  "baseline": {
+    "measured_at": "2026-08-29T00:18:20Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 16,
+    "flake_rate": 0.032,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 484,
+      "AssertionError at test_indexer.py:14: assert <n> == <n>": 16
+    },
+    "wall_s": 31.36,
+    "sound": true
+  }
+}

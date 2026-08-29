@@ -1,0 +1,29 @@
+{
+  "case": "case_01_race_condition",
+  "root_cause_class": "race_condition",
+  "summary": "Two threads lose updates on a shared counter.",
+  "difficulty": "medium",
+  "true_fix_category": "add_mutual_exclusion",
+  "true_fix": "Guard the read-modify-write in `RequestCounter.record` with a `threading.Lock`, so the read of `total` and the write back are one atomic step.",
+  "nondeterminism_source": "CPython switches threads every 5ms. A worker's loop spans several switch intervals, so two workers can read the same total and both write back the same incremented value, losing one update.",
+  "masking_fix_available": true,
+  "masking_fix": "Run the workers sequentially, cut the iteration count until the interleaving stops happening, or relax the assertion to `<=`.",
+  "fix_touches": [
+    "app/counter.py"
+  ],
+  "baseline": {
+    "measured_at": "2026-08-29T00:12:32Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 167,
+    "flake_rate": 0.334,
+    "distinct_signatures": 1,
+    "signatures": {
+      "AssertionError at test_counter.py:31: assert <n> == (<n> * <n>)": 167,
+      "pass": 333
+    },
+    "wall_s": 35.55,
+    "sound": true
+  }
+}

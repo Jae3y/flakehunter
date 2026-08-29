@@ -1,0 +1,30 @@
+{
+  "case": "case_04_clock_dependence",
+  "root_cause_class": "clock_dependence",
+  "summary": "Rate limiter buckets by wall-clock second.",
+  "difficulty": "hard",
+  "true_fix_category": "use_a_monotonic_window",
+  "true_fix": "Replace whole-second wall-clock buckets with a sliding window over `time.monotonic()`, so two hits milliseconds apart cannot land in different windows.",
+  "nondeterminism_source": "`int(time.time())` changes at second boundaries. Two hits 40ms apart straddle a boundary a few percent of the time, and the second lands in a fresh bucket.",
+  "masking_fix_available": true,
+  "masking_fix": "Retry the test, shorten the gap between hits until it rarely straddles a boundary, or pin the clock only in the test.",
+  "fix_touches": [
+    "app/ratelimit.py"
+  ],
+  "notes": "The lowest flake rate in the corpus. A system that samples too few runs will conclude this test is stable.",
+  "baseline": {
+    "measured_at": "2026-08-29T00:14:06Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 20,
+    "flake_rate": 0.04,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 480,
+      "AssertionError at test_ratelimit.py:22: the second hit landed in a different bucket": 20
+    },
+    "wall_s": 31.58,
+    "sound": true
+  }
+}

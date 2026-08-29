@@ -1,0 +1,29 @@
+{
+  "case": "case_10_async_ordering",
+  "root_cause_class": "async_ordering",
+  "summary": "Panels are collected in completion order, not layout order.",
+  "difficulty": "easy",
+  "true_fix_category": "preserve_submission_order",
+  "true_fix": "Use `asyncio.gather(*tasks)`, which returns results in submission order regardless of completion order.",
+  "nondeterminism_source": "`asyncio.as_completed` yields whichever executor thread finishes first, and equal-sized CPU work finishes in scheduling order.",
+  "masking_fix_available": true,
+  "masking_fix": "Sort the results in the test, or compare as sets. Both weaken the assertion that order is part of the output.",
+  "fix_touches": [
+    "app/pipeline.py"
+  ],
+  "baseline": {
+    "measured_at": "2026-08-29T00:17:18Z",
+    "runs": 500,
+    "workers": 8,
+    "strategy": "spawn",
+    "failures": 135,
+    "flake_rate": 0.27,
+    "distinct_signatures": 1,
+    "signatures": {
+      "pass": 365,
+      "AssertionError at test_pipeline.py:15: assert <seq> == <seq>": 135
+    },
+    "wall_s": 35.81,
+    "sound": true
+  }
+}
