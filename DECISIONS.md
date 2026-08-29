@@ -580,3 +580,37 @@ the node-id list and manipulation catalogue in the prompt.
 rise in experiments whose prediction matches no matter what, or a return of
 invented node ids. Both are visible in the trajectory. `design_experiment` and
 `propose_hypotheses` remain in the codebase and the split can be restored.
+
+---
+
+## D-020 — This project's own test suite had a flaky test, fixed the same way the corpus is
+
+**Tension.** `test_no_patch_is_produced_when_stuck` passed in isolation and
+failed once in a full-suite run. The cheap response is a rerun; the honest one
+is to find out why, in a project whose entire premise is that reruns are how
+flaky tests survive.
+
+**Chosen.** Diagnosed it, then raised the sample size: experiment runs 40 → 120,
+confirm runs 60 → 80.
+
+**Why.** The scripted model designs an experiment that *cannot* confirm its
+hypothesis — pinning the timezone has no bearing on an RNG-driven failure — so
+the loop should always eliminate and never reach PATCH. But case 06 fails
+around 20% of the time, and at 40 experiment runs there is roughly a **13%
+chance** the observed rate lands at or below 8% purely by sampling. That
+classifies as `reduced`, which the loop accepts as partial support for a
+predicted `eliminated`, so the hypothesis is confirmed, PATCH is called, and
+the scripted client raises on an agent name it does not answer.
+
+The test was not wrong about the behaviour. It was drawing a conclusion from
+too few runs — the exact failure mode the corpus is built to demonstrate, in
+the code that demonstrates it.
+
+At 120 runs the same threshold sits about three standard deviations out, and
+the suite passed twice consecutively. The comment in the fixture says why the
+number is what it is, so nobody trims it back for speed.
+
+**Revisit if.** The `reduced`-partially-supports-`eliminated` rule changes. That
+tolerance exists so a real signal moving the predicted direction is not
+discarded on a threshold, and it is also what makes this test statistical
+rather than deterministic. Both are consequences of the same deliberate choice.

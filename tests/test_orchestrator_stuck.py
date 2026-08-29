@@ -114,8 +114,15 @@ def scripted_run(tmp_path: Path):
     runner = TestRunner(executor, tracer)
     client = ScriptedClient(tracer)
     config = AgentConfig(
-        confirm_runs=60,
-        experiment_runs=40,
+        # Sized against sampling noise, not for speed. The scripted experiment
+        # must *never* accidentally match its own prediction: case 06 fails
+        # around 20% of the time, and at 40 experiment runs there is a ~13%
+        # chance the observed rate drops far enough to classify as "reduced",
+        # which matches the scripted "eliminated" and sends the loop to PATCH.
+        # That made this suite's own test flaky -- an apt bug for this project,
+        # and fixed the same way the corpus cases are: more runs.
+        confirm_runs=80,
+        experiment_runs=120,
         verify_runs=40,
         stress_runs=40,
         workers=8,
