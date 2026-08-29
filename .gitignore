@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .venv/
 .env
-traces/*.jsonl
-results/*
-!results/.gitignore
+
+# Trajectories and results are submission artifacts and are tracked. Only the
+# transient scratch files written mid-run are excluded.
+results/baseline_partial.json
+results/baseline_dry_run.json
