@@ -352,3 +352,40 @@ becomes redundant.
 per-minute limit's `retryDelay` is honoured up to 90 s; a per-day quota raises
 immediately with a message naming the quota and the three ways out, rather
 than sleeping through four retries and reporting a generic failure.
+
+---
+
+## D-014 — An unsound experiment produces no evidence, not a zero
+
+**Tension.** `classify_effect` read the flake rate and nothing else. An
+experiment whose runs all *errored* has a flake rate of 0.0%, because errors
+are not failures — so a manipulation that stopped the test from executing
+scored as "eliminated", the strongest possible support for whichever
+hypothesis it targeted.
+
+The alternative reading is that a batch is a batch and 0 failures is 0
+failures. That reading is what produced four wasted rounds on case_07.
+
+**Chosen.** `run_experiment` checks `report.is_sound` before interpreting
+anything. An unsound batch returns `actual_effect="invalid"`,
+`matches_prediction=False`, and a note explaining that the test never ran.
+Separately, the experiment designer is given the case's real test node ids.
+
+**Why.** Found in a live run, not by review. case_07 round 4 ran
+`isolate_test(test_network_timeout)` against a case whose only test is
+`test_status_is_fetched_from_a_healthy_service`. pytest collected nothing, 150
+runs errored, the rate read 0.0%, and the loop concluded the failure had been
+eliminated by isolation — which pointed it at `test_order_dependency`, the
+wrong class, for the remaining rounds.
+
+This is the same bug as counting an ERROR run as a pass during verification,
+which Phase 0 had already decided against. The rule existed; it had simply not
+been applied in the experiment layer. Both places now share it: **errors are a
+broken measurement, never a result.**
+
+The node-id fix addresses the cause rather than the symptom — the model was
+inventing plausible names because it had never been shown the real ones.
+
+**Revisit if.** A manipulation is added whose *expected* behaviour is to make
+collection fail, which would make unsoundness informative rather than a bug.
+None currently exist.
