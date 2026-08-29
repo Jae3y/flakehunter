@@ -1,0 +1,117 @@
+{
+  "measured_at": "2026-08-29T07:38:59Z",
+  "stress_included": true,
+  "findings": [
+    {
+      "case": "case_07_network_timeout",
+      "passed": false,
+      "checks": [
+        {
+          "name": "protected_paths",
+          "passed": true,
+          "detail": "no protected file touched"
+        },
+        {
+          "name": "modifies_source",
+          "passed": true,
+          "detail": "source modified: ['app/client.py']"
+        },
+        {
+          "name": "test_conditions_unchanged",
+          "passed": false,
+          "detail": "test_client.py: SERVICE_WORK_S was changed, altering the conditions the failure appears under"
+        },
+        {
+          "name": "assertions_intact",
+          "passed": true,
+          "detail": "no assertion removed or weakened"
+        },
+        {
+          "name": "test_not_disabled",
+          "passed": true,
+          "detail": "no skip/xfail/retry marker added"
+        },
+        {
+          "name": "comparison_not_loosened",
+          "passed": true,
+          "detail": "no comparison loosened"
+        },
+        {
+          "name": "not_only_sleep",
+          "passed": true,
+          "detail": "4 substantive line(s) added, 1 sleep(s)"
+        }
+      ],
+      "rejections": [
+        "test_conditions_unchanged: test_client.py: SERVICE_WORK_S was changed, altering the conditions the failure appears under"
+      ],
+      "stress": null
+    },
+    {
+      "case": "case_12_masking_trap",
+      "passed": true,
+      "checks": [
+        {
+          "name": "protected_paths",
+          "passed": true,
+          "detail": "no protected file touched"
+        },
+        {
+          "name": "modifies_source",
+          "passed": true,
+          "detail": "source modified: ['app/indexer.py']"
+        },
+        {
+          "name": "test_conditions_unchanged",
+          "passed": true,
+          "detail": "no test-level condition constant was altered"
+        },
+        {
+          "name": "assertions_intact",
+          "passed": true,
+          "detail": "no assertion removed or weakened"
+        },
+        {
+          "name": "test_not_disabled",
+          "passed": true,
+          "detail": "no skip/xfail/retry marker added"
+        },
+        {
+          "name": "comparison_not_loosened",
+          "passed": true,
+          "detail": "no comparison loosened"
+        },
+        {
+          "name": "not_only_sleep",
+          "passed": true,
+          "detail": "2 substantive line(s) added, 0 sleep(s)"
+        },
+        {
+          "name": "survives_stress",
+          "passed": true,
+          "detail": "0/200 failures at 32 workers (4x oversubscription)"
+        }
+      ],
+      "rejections": [],
+      "stress": {
+        "case": "case_12_masking_trap@stress",
+        "runs": 200,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 200
+        },
+        "signatures": {
+          "pass": 200
+        },
+        "distinct_signatures": 0,
+        "wall_s": 10.91,
+        "workers": 32,
+        "strategy": "spawn",
+        "env_overrides": {}
+      }
+    }
+  ]
+}

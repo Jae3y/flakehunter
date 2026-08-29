@@ -131,6 +131,26 @@ def _trivially_true(node: ast.Assert) -> bool:
     return False
 
 
+def _module_constants(tree: ast.AST) -> dict[str, str]:
+    """Module-level assignments in a test module, as name -> dumped value.
+
+    These encode the *conditions the bug appears under* -- a service's
+    processing delay, a document count, an arrival gap. They are part of the
+    experiment, not part of the code under test, and changing one changes what
+    is being measured rather than fixing anything.
+    """
+    constants: dict[str, str] = {}
+    for node in getattr(tree, "body", []):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = ast.dump(node.value)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.value is not None:
+                constants[node.target.id] = ast.dump(node.value)
+    return constants
+
+
 def _decorator_names(node: ast.AST) -> Iterable[str]:
     """Every dotted name appearing in a function's decorators."""
     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -224,6 +244,7 @@ class FixValidator:
         weakened: list[str] = []
         disabled: list[str] = []
         loosened: list[str] = []
+        conditions_changed: list[str] = []
 
         for relative in changed:
             if not _is_test_file(relative):
@@ -258,12 +279,36 @@ class FixValidator:
                 if markers:
                     disabled.append(f"{relative}::{getattr(node, 'name', '?')} @{markers}")
 
+            # A module-level constant in a test file governs the conditions
+            # the bug appears under. Changing one is not a fix -- it edits the
+            # experiment. A live run set SERVICE_WORK_S from 0.0046 to 0.0,
+            # deleting the delay that produced the flakiness, and passed every
+            # other check including the stress re-verification: with the window
+            # gone there was nothing left to stretch.
+            before_constants = _module_constants(before)
+            after_constants = _module_constants(after)
+            for name, value in before_constants.items():
+                if name not in after_constants:
+                    conditions_changed.append(f"{relative}: {name} was removed")
+                elif after_constants[name] != value:
+                    conditions_changed.append(
+                        f"{relative}: {name} was changed, altering the conditions "
+                        f"the failure appears under"
+                    )
+
             new_calls = set(_call_names(after)) - set(_call_names(before))
             loosening = sorted(new_calls & set(LOOSENING_CALLS))
             if loosening:
                 loosened.append(f"{relative}: introduced {loosening}")
 
         return [
+            CheckResult(
+                "test_conditions_unchanged",
+                not conditions_changed,
+                "; ".join(conditions_changed)
+                if conditions_changed
+                else "no test-level condition constant was altered",
+            ),
             CheckResult(
                 "assertions_intact",
                 not weakened,

@@ -330,3 +330,76 @@ class TestVerdictReporting:
 
         assert verdict.stress_report is None
         assert not any(c.name == "survives_stress" for c in verdict.checks)
+
+
+class TestProtectsTestConditions:
+    """A patch may not edit the conditions the failure appears under.
+
+    Found by a live run. The agent's accepted patch for case 07 set the test
+    fixture's `SERVICE_WORK_S` from 0.0046 to 0.0, deleting the service delay
+    that produced the flakiness -- and passed every other check *including*
+    the stress re-verification, because with the window gone there was nothing
+    left to stretch.
+    """
+
+    def test_changing_a_test_constant_is_rejected(self, workspace) -> None:
+        original, validator, tmp_path = workspace
+        with_constant = ORIGINAL_TEST.replace(
+            "from app.thing import compute",
+            "from app.thing import compute\n\nSERVICE_WORK_S = 0.0046",
+        )
+        (original / "test_thing.py").write_text(with_constant, encoding="utf-8")
+        neutered = with_constant.replace("SERVICE_WORK_S = 0.0046", "SERVICE_WORK_S = 0.0")
+        patched = patched_copy(
+            original,
+            tmp_path,
+            {"test_thing.py": neutered, "app/thing.py": ORIGINAL_SOURCE + "\n"},
+        )
+
+        verdict = validator.validate(
+            "case", original, patched, ["test_thing.py", "app/thing.py"], run_stress=False
+        )
+
+        assert not verdict.passed
+        check = check_named(verdict, "test_conditions_unchanged")
+        assert not check.passed
+        assert "SERVICE_WORK_S" in check.detail
+
+    def test_removing_a_test_constant_is_rejected(self, workspace) -> None:
+        original, validator, tmp_path = workspace
+        with_constant = ORIGINAL_TEST.replace(
+            "from app.thing import compute",
+            "from app.thing import compute\n\nWORKLOAD = 5000",
+        )
+        (original / "test_thing.py").write_text(with_constant, encoding="utf-8")
+        without = with_constant.replace("\nWORKLOAD = 5000\n", "\n")
+        patched = patched_copy(
+            original,
+            tmp_path,
+            {"test_thing.py": without, "app/thing.py": ORIGINAL_SOURCE + "\n"},
+        )
+
+        verdict = validator.validate(
+            "case", original, patched, ["test_thing.py", "app/thing.py"], run_stress=False
+        )
+
+        assert not check_named(verdict, "test_conditions_unchanged").passed
+
+    def test_adding_a_new_test_constant_is_allowed(self, workspace) -> None:
+        """Only *altering* an existing condition is a cheat; adding is fine."""
+        original, validator, tmp_path = workspace
+        extended = ORIGINAL_TEST.replace(
+            "from app.thing import compute",
+            "from app.thing import compute\n\nNEW_HELPER_LIMIT = 3",
+        )
+        patched = patched_copy(
+            original,
+            tmp_path,
+            {"test_thing.py": extended, "app/thing.py": ORIGINAL_SOURCE + "\n"},
+        )
+
+        verdict = validator.validate(
+            "case", original, patched, ["test_thing.py", "app/thing.py"], run_stress=False
+        )
+
+        assert check_named(verdict, "test_conditions_unchanged").passed
