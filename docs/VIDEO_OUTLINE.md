@@ -96,7 +96,7 @@ window.
 
 ## 4. Why syntax can't decide it — 2:35–3:05
 
-**On screen:** side-by-side — `corpus/case_07.../metadata.json`
+**On screen:** side-by-side — `corpus/case_07_network_timeout/metadata.json`
 (`root_cause_class: network_timeout_no_retry`) and case 12's masking retry.
 
 **Say:** The obvious anti-cheat rule is "reject fixes that add a sleep or a
@@ -114,8 +114,7 @@ fix that removed the race has neither to exhaust.
 
 *The strongest engineering beat. Do not rush it.*
 
-**On screen:** `results/archive/rejected_patches/case_07_attempt1_rejected/REVALIDATION.md`,
-scrolled to the diff.
+**On screen:** `results/archive/rejected_patches/case_07_attempt1_rejected/REVALIDATION.md`, scrolled to the diff.
 
 **Say:** Our agent produced a patch that passed all seven checks in force at the
 time — including the stress check — and it was cheating twice.
@@ -200,8 +199,8 @@ it's wrong.
 | 2 | `def __init__( -> None:` + SyntaxError stderr | baseline patch, case 01 |
 | 3 | `49/200 failures at 32 workers` | `results/revalidation.json` |
 | 4 | Masking demo 3×3 table | `scripts/demo_masking_fix.py` |
-| 5 | The two-hunk cheating diff | `.../case_07_attempt1_rejected/REVALIDATION.md` |
-| 6 | Re-validation summary, both arms | `revalidate_pending.py` output |
+| 5 | The two-hunk cheating diff | `results/archive/rejected_patches/case_07_attempt1_rejected/REVALIDATION.md` |
+| 6 | Re-validation summary, both arms | `scripts/revalidate_pending.py` output |
 | 7 | The 13% arithmetic | README self-flake section |
 | 8 | Approval package + clean `git status` | `results/pending_approval/` |
 | 9 | Corpus measurement running | `measure_corpus.py --runs 500` |
@@ -229,3 +228,28 @@ it's wrong.
 Understated. The findings are strong enough that overselling them would cost
 credibility. Say "we misdiagnosed this at first" out loud — it is a
 30-word admission that makes every other claim in the video more believable.
+
+
+---
+
+## Shot-list verification
+
+Every artifact named above was checked to exist and to contain what this
+outline claims, by script rather than by memory:
+
+| Shot | Verified |
+|---|---|
+| 1 Claimed/verified/legitimate table | `Claimed 12/12` present in `results/RESULTS.md` |
+| 2 `def __init__( -> None:` | found verbatim in the stored case 01 patch |
+| 3 49/200 at 32 workers | `results/revalidation.json`, workers=32, failures=49 |
+| 4 Masking demo table | 4 variants x 3 workloads in `results/case12_masking_demo.json` |
+| 5 The cheating diff | ` ```diff ` block with `SERVICE_WORK_S` in the rejection record |
+| 7 The 13% arithmetic | README section present with the figure |
+| 8 Approval package + clean corpus | package exists; 0 corpus **code** changes |
+| 10 Trajectory index | `traces/README.md` present |
+
+Re-run the check before filming — numbers move if anything is re-measured:
+
+```bash
+python scripts/verify_video_shots.py
+```

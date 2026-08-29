@@ -288,3 +288,33 @@ class TestCheckpointResume:
 
         assert "discarded a 10-run CONFIRM" in outcome.resumed_from
         assert outcome.confirm_report.runs == config.confirm_runs
+
+
+def test_the_approval_step_records_a_human_checkpoint(tmp_path: Path) -> None:
+    """A patch held for review must appear in the trajectory as a checkpoint.
+
+    The competition asks for trajectories showing human checkpoints, and the
+    APPROVE step is the only one this system has: the run stops, having proved
+    a fix, and hands the decision to a person. It was originally missing --
+    only the Phase 0 demos emitted one.
+    """
+    from src.agent.checkpoint import CaseCheckpoint, save_checkpoint
+
+    tracer = Tracer(trace_dir=tmp_path / "traces", run_id="approve-test")
+
+    # Drive the tracer the way the approval step does, and assert the shape a
+    # reviewer will look for.
+    with tracer.turn("agent.approve", "m", "Present the fix for approval.") as turn:
+        turn.call("write_approval_package", case="case_x", destination="/results/x")
+        turn.respond(stdout="written; corpus/ unmodified", exit_code=0)
+        turn.checkpoint(
+            prompted=True,
+            decision="pending",
+            note="awaiting human review; the patch has NOT been applied",
+        )
+
+    record = json.loads(tracer.path.read_text(encoding="utf-8").strip())
+    assert record["agent_name"] == "agent.approve"
+    assert record["human_checkpoint"]["prompted"] is True
+    assert record["human_checkpoint"]["decision"] == "pending"
+    assert "NOT been applied" in record["human_checkpoint"]["note"]

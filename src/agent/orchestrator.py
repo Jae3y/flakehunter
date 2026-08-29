@@ -505,6 +505,48 @@ def run_agent_case(
                     outcome, case, patched, approval_root, trace_run_id
                 )
                 outcome.approval_dir = str(target)
+
+                # The APPROVE step is the human checkpoint, so it belongs in
+                # the trajectory as one. The run does not decide -- it stops,
+                # having produced a patch and the evidence for it, and records
+                # that a person is now required. `decision` stays "pending"
+                # because nobody has looked yet; writing "approved" here would
+                # be the agent approving its own work.
+                with client.tracer.turn(
+                    "agent.approve",
+                    client.model,
+                    f"A fix for {case.name} survived validation and a "
+                    f"{config.verify_runs}-run verification. Present it for "
+                    f"human approval; do not apply it.",
+                ) as turn:
+                    turn.call(
+                        "write_approval_package",
+                        case=case.name,
+                        destination=str(target),
+                        files=[f.get("path") for f in (outcome.patch or {}).get("files", [])],
+                        residual_flake_rate=verify.flake_rate,
+                        verification_runs=verify.runs,
+                    )
+                    turn.respond(
+                        stdout=(
+                            f"patch + root-cause writeup + {verify.runs}-run evidence "
+                            f"written to {target}; corpus/ unmodified"
+                        ),
+                        exit_code=0,
+                    )
+                    turn.checkpoint(
+                        prompted=True,
+                        decision="pending",
+                        note=(
+                            f"awaiting human review of {target.name}; the patch has "
+                            f"NOT been applied to the repository"
+                        ),
+                    )
+                    turn.reflect(
+                        f"{verify.failures}/{verify.runs} failures after the fix and "
+                        f"every validator check passed, so the loop stops here. "
+                        f"Installing the patch is a person's decision, not mine."
+                    )
                 return outcome
 
             history.append(
