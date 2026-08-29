@@ -243,27 +243,42 @@ Session narrative in `SESSION_LOG.md`. Per-iteration measurements in
 
 ## Improvement Changelog
 
-Appended live with real numbers, never reconstructed. Five entries; the ones
-that record a failure are the useful ones.
+Appended live with real measurements, never reconstructed. Eight entries in
+`docs/CHANGELOG.md`; the ones recording a failure are the useful ones.
 
-| # | What it records |
-|---|---|
-| 001 | Sandbox and tracer. Container-per-execution priced at 3.6 h of pure overhead and rejected; tmpfs staging cut 127 ms/run; SPAWN vs FORK fidelity measured, not assumed |
-| 002 | 12-case corpus. Seven cases **rebuilt, not retuned**. Failure-signature grouping set by measurement (one signature per *run* → one per bug) |
-| 003 | **Drift diagnosis.** The harness was *creating* the flakiness it measured |
-| 004 | Baseline arm. Two harness bugs caught by measurement, not review |
-| 005 | Agent loop. A bug the live run exposed in the experiment layer |
+| # | What changed | Measured effect |
+|---|---|---|
+| **001** | Sandbox + tracer. Container-per-execution priced and rejected; tmpfs staging; SPAWN vs FORK fidelity | 3.6 h of pure overhead avoided; 127 ms/run saved (622 → 508 ms); FORK shown to *destroy* hash-order flakiness, so gated in code |
+| **002** | 12-case corpus + repeat-execution harness | Seven cases **rebuilt, not retuned**; failure-signature grouping fixed from one signature *per run* to one *per bug* |
+| **003** | Drift diagnosis | The harness was **creating** the flakiness: case 01 flaked **0.0% serially, 25% at 8 workers**. Two cases rebuilt to be intrinsically flaky (27.3%, 22.7% serial) |
+| **004** | Baseline arm | 12/12 causes identified, 10/12 verified. Two harness bugs caught *by measurement*: reply truncation, and a 0.00% residual where every run errored |
+| **005** | Agent loop + validator | Case 12 resolved in 1 round, 0/500. A live run exposed invented test node ids scoring as evidence — fixed both ways |
+| **006** | Case 07 retry after the node-id fix | 5 rounds → **2**; invalid experiments 2 → **0**; 16.8 min → 5.4 min |
+| **007** | Validator evolution + retroactive re-check | Two checks added *because patches defeated the validator*. All 14 accepted patches re-checked: agent 1/2, baseline 10/12 |
+| **008** | Designing around 20 requests/day | Checkpoint/resume + merged round call. Per round **2 requests → 1**; case 05 reached round 3 where it previously reached round 1 |
 
 ### The removed experiment
 
-Tuning case 09's float flakiness by magnitude. The theory was that catastrophic
-cancellation would scale smoothly with the size of the operands. It does not —
-precision loss is a **threshold at 2^53**, so the case jumped 0% ↔ 100% with
-nothing usable between. Three analytical guesses failed the same way, because
-they reasoned about *what fraction of permutations are wrong* when the observed
-completion orders turned out to be heavily concentrated rather than uniform.
-Histogramming the actual totals settled it in one step. The failed approach was
-analytical; the one that worked was empirical.
+Tuning case 09's float flakiness by operand magnitude. The theory: catastrophic
+cancellation scales smoothly with operand size. It does not — precision loss is
+a **threshold at 2^53**, so the case jumped 0% ↔ 100% with nothing usable
+between. Three analytical guesses failed identically, because they reasoned
+about *what fraction of permutations are wrong* when observed completion orders
+turned out to be heavily concentrated rather than uniform. Histogramming the
+actual totals settled it in one step: `[0.1, 0.7, 1.1, 2.3]` yields 4.2 in 66%
+of runs and 4.199999999999999 in 34%.
+
+The failed approach was analytical. The one that worked was empirical. That is
+the same lesson as the rest of the project, arriving from a different direction.
+
+### A correction, left visible
+
+`DECISIONS.md` D-011 attributed case 01's 500 error runs to a CPU limit,
+inferred from the exit code without reading the captured stderr. Raising the
+CPU budget changed nothing, which is what finally prompted reading it — the
+patch had a syntax error. A syntax error and a resource kill both exit pytest
+with code 2. The entry carries the correction rather than being quietly edited,
+and the validator gained the check that would have named it in one line.
 
 ---
 

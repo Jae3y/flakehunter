@@ -1,0 +1,33 @@
+{
+  "case": "case_08_tempfile_collision",
+  "model": "gemini-3.6-flash",
+  "updated_at": "2026-08-29T19:12:12Z",
+  "confirm": {
+    "case": "case_08_tempfile_collision",
+    "runs": 200,
+    "failures": 9,
+    "errors": 0,
+    "flake_rate": 0.045,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 191,
+      "fail": 9
+    },
+    "signatures": {
+      "pass": 191,
+      "AssertionError at test_cache.py:39: <n> write(s) failed: <seq> No such file or directory: <str> -> <str>": 9
+    },
+    "distinct_signatures": 1,
+    "wall_s": 12.47,
+    "workers": 8,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": ""
+}

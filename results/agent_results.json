@@ -1,12 +1,12 @@
 {
-  "measured_at": "2026-08-29T18:47:38Z",
+  "measured_at": "2026-08-29T19:12:47Z",
   "model": "gemini-3.6-flash",
-  "trace_run_id": "agent-20260829T184647Z",
+  "trace_run_id": "agent-20260829T191146Z",
   "usage": {
-    "calls": 1,
-    "prompt_tokens": 1296,
-    "output_tokens": 1580,
-    "total_tokens": 2876
+    "calls": 0,
+    "prompt_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
   },
   "results": [
     {
@@ -163,14 +163,14 @@
       "residual_flake_rate": null,
       "stuck_reason": null,
       "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 25.6,
+      "wall_s": 6.8,
       "tokens": {
-        "prompt": 1296,
-        "output": 1580,
-        "total": 2876
+        "prompt": 0,
+        "output": 0,
+        "total": 0
       },
       "approval_dir": null,
-      "resumed_from": "resuming: confirm 14/200, 1 round(s) done, eliminated ['hash_iteration_order']"
+      "resumed_from": "resuming: confirm 14/200, 2 round(s) done, eliminated ['hash_iteration_order']"
     },
     {
       "case": "case_02_test_order_dependency",
@@ -230,7 +230,7 @@
       "residual_flake_rate": null,
       "stuck_reason": null,
       "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 1.4,
+      "wall_s": 2.0,
       "tokens": {
         "prompt": 0,
         "output": 0,
@@ -297,7 +297,7 @@
       "residual_flake_rate": null,
       "stuck_reason": null,
       "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 1.2,
+      "wall_s": 2.2,
       "tokens": {
         "prompt": 0,
         "output": 0,
@@ -342,7 +342,7 @@
       "residual_flake_rate": null,
       "stuck_reason": null,
       "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 1.5,
+      "wall_s": 1.2,
       "tokens": {
         "prompt": 0,
         "output": 0,
@@ -387,7 +387,142 @@
       "residual_flake_rate": null,
       "stuck_reason": null,
       "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
-      "wall_s": 20.9,
+      "wall_s": 1.0,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null,
+      "resumed_from": "resuming: confirm 44/200"
+    },
+    {
+      "case": "case_08_tempfile_collision",
+      "status": "ERROR",
+      "expected_class": "tempfile_collision",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_08_tempfile_collision",
+        "runs": 200,
+        "failures": 9,
+        "errors": 0,
+        "flake_rate": 0.045,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 191,
+          "fail": 9
+        },
+        "signatures": {
+          "pass": 191,
+          "AssertionError at test_cache.py:39: <n> write(s) failed: <seq> No such file or directory: <str> -> <str>": 9
+        },
+        "distinct_signatures": 1,
+        "wall_s": 12.47,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 13.3,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null,
+      "resumed_from": "no checkpoint"
+    },
+    {
+      "case": "case_11_cache_leak",
+      "status": "ERROR",
+      "expected_class": "cache_leak",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_11_cache_leak",
+        "runs": 200,
+        "failures": 62,
+        "errors": 0,
+        "flake_rate": 0.31,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 138,
+          "fail": 62
+        },
+        "signatures": {
+          "pass": 138,
+          "AssertionError at test_pricing.py:29: assert <n> == <n>": 62
+        },
+        "distinct_signatures": 1,
+        "wall_s": 12.3,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 1.7,
+      "tokens": {
+        "prompt": 0,
+        "output": 0,
+        "total": 0
+      },
+      "approval_dir": null,
+      "resumed_from": "resuming: confirm 62/200, (reasoning discarded: different model)"
+    },
+    {
+      "case": "case_10_async_ordering",
+      "status": "ERROR",
+      "expected_class": "async_ordering",
+      "concluded_class": null,
+      "cause_identified": false,
+      "rounds": 1,
+      "confirm": {
+        "case": "case_10_async_ordering",
+        "runs": 100,
+        "failures": 20,
+        "errors": 0,
+        "flake_rate": 0.2,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 80,
+          "fail": 20
+        },
+        "signatures": {
+          "pass": 80,
+          "AssertionError at test_pipeline.py:15: assert <seq> == <seq>": 20
+        },
+        "distinct_signatures": 1,
+        "wall_s": 29.97,
+        "workers": 1,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "hypotheses": [],
+      "experiments": [],
+      "validations": [],
+      "patch": null,
+      "verification": null,
+      "residual_flake_rate": null,
+      "stuck_reason": null,
+      "error": "gemini-3.6-flash: daily quota exhausted (GenerateRequestsPerDayPerProjectPerModel-FreeTier). This will not clear by retrying. Either wait for the quota to reset, switch FLAKEHUNTER_MODEL to a model with its own allowance, or move off the free tier.",
+      "wall_s": 32.5,
       "tokens": {
         "prompt": 0,
         "output": 0,

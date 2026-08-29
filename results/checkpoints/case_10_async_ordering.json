@@ -1,0 +1,33 @@
+{
+  "case": "case_10_async_ordering",
+  "model": "gemini-3.6-flash",
+  "updated_at": "2026-08-29T19:12:44Z",
+  "confirm": {
+    "case": "case_10_async_ordering",
+    "runs": 100,
+    "failures": 20,
+    "errors": 0,
+    "flake_rate": 0.2,
+    "is_sound": true,
+    "outcomes": {
+      "pass": 80,
+      "fail": 20
+    },
+    "signatures": {
+      "pass": 80,
+      "AssertionError at test_pipeline.py:15: assert <seq> == <seq>": 20
+    },
+    "distinct_signatures": 1,
+    "wall_s": 29.97,
+    "workers": 1,
+    "strategy": "spawn",
+    "env_overrides": {}
+  },
+  "rounds_completed": 0,
+  "hypotheses": [],
+  "experiments": [],
+  "eliminated": [],
+  "history": [],
+  "seen_signatures": [],
+  "note": ""
+}
