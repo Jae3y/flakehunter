@@ -477,3 +477,95 @@ Once fixed, case 01 takes roughly four seconds per run — the lock serialises
 400,000 increments across eight threads — so a 500-run serial verification
 exceeds half an hour. It was cut from both arms rather than measured in one,
 keeping the comparison symmetric. See `DECISIONS.md` D-012 for the remedy.
+
+---
+
+## 005 — Phase 3: the agent loop, the validator, and what two live cases showed
+
+**Date:** 2026-08-29 (unattended run)
+**Status:** loop complete and exercised; arm blocked at 2 of 12 cases by API quota
+
+### Live results
+
+Two cases ran the full loop against a real model before quota ran out.
+
+**case_12 masking trap — PENDING approval, `gemini-3.6-flash`, 1 round.**
+
+| Step | Result |
+|---|---|
+| CONFIRM | 2/200 = 1.0%, one signature |
+| HYPOTHESIZE | `publication_ordering` vs `race_condition`, each with a distinguishing prediction |
+| EXPERIMENT | `amplify_contention(2)`, predicted *increased* → observed **1.0% → 44.0%** |
+| OBSERVE | confirms publication ordering, eliminates the race |
+| VALIDATE | 7/7 checks, including **0/200 at 32 workers** |
+| VERIFY | **0/500** |
+| APPROVE | written to `results/pending_approval/`, not applied |
+
+**case_07 network timeout — UNRESOLVED, `gemini-3.5-flash`, 5 rounds, 16.8 min.**
+Five hypotheses, five experiments, three patch attempts, all three rejected by
+the validator (`survives_stress` twice, `modifies_source` once). The agent
+declined to declare success.
+
+That is the correct outcome, and it is the interesting one: **the baseline
+"fixed" this same case with `high` confidence, and its patch still fails 0.80%
+of the time.**
+
+### Claimed versus verified — the headline
+
+The baseline returned a patch for **12/12** cases and reported `high`
+confidence on **every one**. Re-running each patch 500 times:
+
+| | Count |
+|---|---|
+| Patches produced | 12/12 |
+| Reported `high` confidence | 12/12 |
+| Actually reached zero failures | **10/12** |
+| Confident patches that were not fixes | **2** |
+
+- **case_07** — correct root cause, plausible retry fix, **0.80% residual**
+  (4 failures in 500 runs). Invisible to one execution.
+- **case_01** — correct fix (a lock), but every verification run errored on the
+  CPU limit. `0.00%` residual that meant nothing until `is_sound` was checked.
+
+Two false greens out of twelve, indistinguishable from the ten real ones
+without running the test hundreds of times. That is the gap the harness fills.
+
+### A bug the live run exposed in the agent
+
+case_07 round 4 ran `isolate_test(test_network_timeout)` — against a case whose
+only test is `test_status_is_fetched_from_a_healthy_service`. pytest collected
+nothing, all 150 runs errored, `flake_rate` read **0.0%**, and the loop scored
+that as *eliminated*.
+
+An invented node id was manufacturing evidence for whichever hypothesis the
+experiment happened to target. It is the same failure as counting an ERROR run
+as a pass during verification, in a layer that had not been given the same
+guard. Two fixes:
+
+1. `run_experiment` returns **no evidence** when the batch is unsound, with a
+   note saying so, instead of a rate.
+2. The experiment designer is handed the case's **real node ids**, so it cannot
+   invent one.
+
+The validator contained the damage — all three resulting patches were rejected,
+nothing wrong was accepted — but the agent burned four rounds on false evidence
+before hitting the cap.
+
+### The stuck-loop detector, finally tested
+
+It had never fired in a live run. Five tests (`tests/test_orchestrator_stuck.py`)
+now drive it with a scripted model that names the same root cause every round
+and designs an experiment that cannot confirm it. Zero API calls; real sandbox,
+harness and corpus.
+
+It fires on **round 3 of 5** — before the arbitrary cap, which matters, because
+a detector that only ever tripped at the cap would be indistinguishable from
+the cap. It records its hypotheses and experiments, produces no patch, reaches
+no approval directory, and leaves a contiguous trajectory.
+
+### Quota
+
+Free tier is **20 requests per day per model**. The baseline consumed
+`gemini-3.6-flash`; case_07's five rounds consumed `gemini-3.5-flash`.
+Nine cases could not be attempted. They are carried in the results table as
+explicit `NOT RUN (quota)` rows rather than dropped.
