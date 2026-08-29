@@ -389,3 +389,35 @@ inventing plausible names because it had never been shown the real ones.
 **Revisit if.** A manipulation is added whose *expected* behaviour is to make
 collection fail, which would make unsoundness informative rather than a bug.
 None currently exist.
+
+---
+
+## D-015 — Billing enabled: the agent arm moves back onto the baseline's model
+
+**Tension.** D-013 split the evidence in two because free-tier quota was
+per-model: the baseline had consumed `gemini-3.6-flash`, so the only way to run
+more agent cases was a different model, which would have compared models rather
+than methods. With billing enabled that constraint is gone, but there is now a
+choice about what to do with the results already gathered on
+`gemini-3.5-flash`.
+
+**Chosen.** Re-run every remaining case on **`gemini-3.6-flash`**, the
+baseline's model, including case 07 from scratch. The 3.5-flash subset is
+archived as `results/agent_results_gemini-3.5-flash-subset.json` and kept out of
+the headline table.
+
+**Why.** The comparison is the product, and it is only worth anything if both
+arms saw the same model. Now that they can, the mixed-model rows should not
+survive into the results — keeping them would leave a table whose rows mean
+subtly different things, which is worse than a table with fewer rows.
+
+Case 07 is reset rather than resumed for a separate reason: the node-id bug
+(D-014) poisoned at least one of its five rounds with manufactured evidence,
+and the round budget it spent chasing that false signal is not recoverable by
+continuing. A clean re-run answers the question the first attempt could not:
+whether case 07 is genuinely hard, or was only hard because the harness was
+lying to it. Either answer is worth having, and the second is worth more.
+
+**Revisit if.** Nothing pending. The archived 3.5-flash run stays on disk as a
+record of what was attempted under the quota constraint, and because its
+case 07 trajectory is the evidence for D-014.
