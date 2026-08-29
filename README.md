@@ -125,6 +125,59 @@ levels were needed: at 80k the retry still looks legitimate.
 
 ---
 
+---
+
+## The tool found a flaky test in itself
+
+> *The clearest evidence that this generalises, and it was not planned.*
+
+Late in the build, `test_no_patch_is_produced_when_stuck` — one of our own unit
+tests — passed on its own and failed once in a full-suite run. The reflex is to
+rerun it. That reflex is the entire problem this project exists to attack, so
+we did what the tool does instead.
+
+**What was happening.** The test drives the agent loop with a scripted model
+that always proposes the same root cause and always designs an experiment that
+*cannot* confirm it — pinning the timezone has no bearing on a
+random-number-driven failure. The loop should therefore always eliminate the
+hypothesis and never reach the PATCH step.
+
+**Why 40 runs was not enough.** The case under test fails about **20%** of the
+time. The experiment ran **40 times**. The loop classifies an observed rate at
+or below 8% as `reduced`, and treats `reduced` as partial support for a
+predicted `eliminated` — deliberately, so a real signal moving the right way is
+not discarded on a threshold. At n=40 and p=0.20, the chance of landing at or
+below 8% by sampling alone is roughly **13%**.
+
+So the experiment confirmed a hypothesis that could not be true, the loop
+proceeded to PATCH, and the scripted model raised on a request it does not
+answer. Roughly one run in eight.
+
+**The test was not wrong about the behaviour. It was drawing a conclusion from
+too few runs** — the exact failure mode the twelve corpus cases were built to
+demonstrate, occurring in the code that demonstrates them.
+
+**The fix was the project's own thesis.** Not a rerun, not a retry decorator,
+not a `sleep`: raise the sample until the threshold sits about three standard
+deviations out. Experiment runs 40 → 120, confirm runs 60 → 80. It then passed
+twice consecutively, and the fixture carries a comment explaining why the
+numbers are what they are so nobody trims them back for speed.
+
+**Why this matters more than the corpus.** The twelve cases are seeded — we
+wrote them, we knew the answers, and a sceptic can reasonably ask whether the
+approach works on anything we did not plant. This one we did not plant. It
+appeared in our own test suite, was diagnosed by the same reasoning the tool
+applies, and was fixed the same way. See `DECISIONS.md` D-020.
+
+A related near-miss, in the same spirit: a unit test once leaked a **60-run**
+measurement into a checkpoint directory a live run would read from. It was
+caught because every recorded number carries its conditions, so `12/60` stood
+out beside seven cases reading `n/200`. It reached no reported result, and the
+verification of that is written out in `DECISIONS.md` D-021 rather than
+asserted.
+
+---
+
 ## The baseline, and its documented resource difference
 
 The baseline gets the **same model**, the **same complete view of the project**,
