@@ -32,7 +32,21 @@ contention), seven validator checks and a 0/500 verification. **It has not been
 applied.** `corpus/` is clean against HEAD, verified by the self-audit rather
 than asserted.
 
-If you approve it, copy `patched_files/` over `corpus/case_12_masking_trap/project/`.
+Record your decision with:
+
+```bash
+python scripts/record_decision.py case_12_masking_trap --approve --note "your reason"
+python scripts/record_decision.py case_12_masking_trap --reject  --note "your reason"
+```
+
+This **closes the human checkpoint** — it writes a `human.reviewer` turn to the
+trajectory carrying `decision: approved` or `rejected` instead of leaving the
+agent's `pending` open forever, drops a `DECISION.md` into the package, and
+updates the case's status.
+
+Approving does **not** install the patch. Add `--apply` when you also want it
+copied over `corpus/case_12_masking_trap/project/`, so "this looks right" and
+"write it into the repository" stay two separate acts.
 
 ### 3. Submit to HackerEarth
 
