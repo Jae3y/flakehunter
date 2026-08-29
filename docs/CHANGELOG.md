@@ -281,3 +281,112 @@ the agent and the evaluation never use, and the error message now names it.
   and needs quantifying before the baseline/agent comparison depends on it.
 - Every case's `masking_fix_available` is `True`, which the validator will
   have to contend with on all twelve, not just case 12.
+
+---
+
+## 003 — Drift resolved: contention was manufacturing the flakiness
+
+**Date:** 2026-08-29 (unattended run)
+**Status:** diagnosed, two cases rebuilt, protocol locked
+
+### The question
+
+Corpus rates moved between measurements with no code change. Case 01 read
+47%, 20.6%, 33.4%, 18.9%, 41.2% and 52.0% across sessions; case 12 read 38%,
+6.2%, 3.2%. Sample size, machine state and ordering all predict different
+things, so they were measured rather than argued about.
+
+### Sample size was never the problem
+
+Five back-to-back batches of 500 runs, one container, `scripts/diagnose_drift.py`:
+
+| case | batch rates | observed sd | binomial sd | overdispersion |
+|---|---|---|---|---|
+| 01 race | 17.6 / 21.4 / 18.4 / 18.8 / 18.4% | 1.45% | 1.75% | **0.83x** |
+| 03 port | 37.4 / 44.0 / 42.6 / 41.4 / 44.8% | 2.90% | 2.21% | 1.32x |
+| 06 RNG | 24.6 / 26.8 / 26.6 / 25.2 / 24.8% | 1.03% | 1.95% | 0.53x |
+| 12 masking | 1.4 / 1.0 / 0.8 / 7.0 / 3.0% | 2.59% | 0.72% | 3.61x |
+
+Within a session, batches are close to binomial. So `n` was not the issue —
+and the same script's position test then measured case 01 again after ~10,000
+runs of load and got **41.2%, then 52.0%**, against the 18.9% it had just
+recorded.
+
+### The cause: the harness was creating the phenomenon
+
+`scripts/concurrency_drift.py`, serial versus 8 workers:
+
+| case | serial | 8 workers | drift |
+|---|---|---|---|
+| **01 race** | **0.0%** | 25.0% | 25.0 pts |
+| 03 port | 45.5% | 33.0% | 12.5 pts |
+| 04 clock | 6.0% | 2.0% | 4.0 pts |
+| 07 network | 2.5% | 8.0% | 5.5 pts |
+| 08 tempfile | 1.0% | 4.5% | 3.5 pts |
+| 09 float | 15.5% | 13.5% | 2.0 pts |
+| **10 async** | **0.0%** | 11.5% | 11.5 pts |
+| 12 masking | 0.0% | 0.0% | 0.0 pts |
+
+Case 01 does not flake at all when run alone. Eight concurrent runs
+oversubscribing the CPU is what forced the GIL to preempt mid-update. The
+harness was manufacturing the phenomenon it was measuring, and the rate
+tracked machine load because load was never controlled. Case 10 the same.
+
+The control confirms it: case 06, whose nondeterminism is intrinsic to the
+code under test rather than to thread timing, sat at 23–27% in every condition
+tried while case 01 wandered from 18.9% to 56.8%.
+
+### A removed experiment: the idle CPU probe
+
+`--mode interleave` timed a fixed single-threaded loop between batches to test
+"the machine is thermally throttling". It found **no systematic slowdown**
+(−4.2% over ten cycles) while case 01 varied 36.8–56.8%, correlation +0.29.
+The probe was measuring single-core speed with the workers idle, which cannot
+see the all-core frequency drop that sustained parallel load causes. The
+approach was abandoned: a probe that runs when the load is absent cannot
+measure what the load does.
+
+### The fix: rebuild the cases, not the protocol
+
+Both cases were rebuilt so their nondeterminism is intrinsic:
+
+| case | change | serial before | serial after |
+|---|---|---|---|
+| 01 | 25,000 → 50,000 iterations per worker, so each worker's loop outlasts the 5 ms GIL switch interval unaided | 0.0% | 27.3% |
+| 10 | equal panel cost instead of a work gradient, so completion order is decided by scheduling not by size | 0.0% | 22.7% |
+
+All twelve now flake when run alone (serial, n=100): 96.0, 25.0, 59.0, 4.0,
+4.0, 24.0, 34.0, 24.0, 22.0, 62.0, 32.0, 20.0%.
+
+### What is still not fixed, stated plainly
+
+Rebuilding removed the *manufactured* component. It did not make the host
+stable. Between the drift sweep and the serial sweep several hours later, with
+no code change:
+
+| case | earlier serial | later serial |
+|---|---|---|
+| 07 network | 2.5% | 34.0% |
+| 08 tempfile | 1.0% | 24.0% |
+| 01 race | 27.3% | 96.0% |
+| 03 port | 45.5% | 59.0% |
+
+The host got materially slower over the session, and every timing-sensitive
+case moved with it. This is not something a measurement protocol on this
+machine can remove.
+
+The consequences, and they are narrower than they look:
+
+1. **Absolute "before" rates are session-local.** A corpus flake rate is only
+   meaningful alongside when it was taken.
+2. **Comparisons must be paired within a session.** Both arms measure the same
+   case adjacently under the same machine state, so the difference between
+   them survives even when the absolute numbers do not. This is why
+   `src/harness/protocol.py` owns the settings for both arms.
+3. **The primary metric is untouched.** Residual flake rate after a real fix
+   is zero, and zero is zero under any machine state. Machine speed changes
+   how *often* a race is observed, not whether it exists.
+
+Recorded rather than smoothed over, because a table of absolute flake rates
+that silently depended on what else the laptop was doing would be the exact
+failure this project exists to attack.

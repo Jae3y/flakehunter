@@ -138,3 +138,101 @@ where syntax cannot.
 **Revisit if.** A case appears whose true fix legitimately depends on
 workload-sensitive timing, which would make the stress dimension produce false
 rejections.
+
+---
+
+## D-007 — Cost is reported in tokens, not dollars
+
+**Tension.** The brief asks for API cost per case, and the results table has a
+cost column. Published per-token rates for `gemini-3.6-flash` are not
+available to this project.
+
+**Chosen.** Report prompt and output tokens, measured. Leave `cost_usd` as
+`null` in the trajectory and omit a dollar column from the results table.
+
+**Why.** This is the same call made at Phase 0 for the pricing table, and for
+the same reason: a fabricated number in a cost column is worse than an honest
+token count. Tokens are what was actually measured; a rate can be multiplied
+through later, and cannot be recovered from a made-up dollar figure. Gemini
+bills reasoning tokens as output, so `billed_output_tokens` deliberately sums
+`candidatesTokenCount` and `thoughtsTokenCount` -- reporting only the visible
+completion would understate spend, sometimes by an order of magnitude.
+
+**Revisit if.** Official rates for the model become available, at which point
+`PRICING_USD_PER_MTOK` is populated and every recorded trajectory can be
+re-costed without re-running anything.
+
+---
+
+## D-008 — One locked protocol module, per-case worker counts
+
+**Tension.** The maintainer's rule was to pin drifting case classes to a lower
+worker count. Implementing that as a default argument in each script would
+work, and would also let the two arms drift apart the first time someone
+passed `--workers` to one of them.
+
+**Chosen.** `src/harness/protocol.py` owns the run counts and the per-case
+worker counts. Both arms read from it.
+
+**Why.** The comparison between arms is the product. A comparison whose arms
+were measured under different conditions is not evidence, so "both arms use
+the same settings" should be a property of the code rather than a thing to
+remember. Verification stays at 500 runs for every case including the pinned
+serial ones -- the headline number is not allowed to get cheaper for some
+cases than others. Confirm/experiment/stress counts halve for serial cases,
+since those only have to separate hypotheses, not prove a fix.
+
+**Revisit if.** A case's drift changes after it is patched, which would mean
+the fix altered its contention profile and the pinning needs re-deriving.
+
+---
+
+## D-009 — Two corpus cases rebuilt rather than measured around
+
+**Tension.** Case 01 and case 10 read 0.0% serially and 25%/11.5% at eight
+workers. The threshold rule says pin them to a lower worker count -- but
+pinning case 01 to serial makes it 0.0% flaky, which fails the corpus rule
+that a case flaking 0/500 is broken and useless for evaluation. Following one
+rule literally would break the other.
+
+**Chosen.** Rebuild both so their nondeterminism is intrinsic: case 01 from
+25,000 to 50,000 iterations per worker, case 10 from a work gradient to equal
+panel cost. Measured after: 27.3% and 22.7% serial.
+
+**Why.** A case whose flakiness only exists under the harness's own
+concurrency means the agent would be diagnosing our measurement setup, not the
+bug. Worse, the agent's experiment vocabulary includes `serialize_execution` --
+it would have run that, seen the failure vanish, and correctly concluded "CPU
+contention", which is the wrong root cause for a case whose intended answer is
+a data race. The corpus has to contain the bug it claims to contain.
+
+This is also the root cause of the drift that started the investigation. Rates
+produced by contention track machine load; rates intrinsic to the code do not.
+Case 06 sat at 23-27% in every condition tested while case 01 wandered between
+18.9% and 56.8%.
+
+**Revisit if.** A rebuilt case turns out to be slow enough to threaten the
+runtime budget -- case 01 at 50,000 iterations is the most expensive case in
+the corpus and is pinned serial, which compounds it.
+
+---
+
+## D-010 — A wedged measurement job was killed rather than waited out
+
+**Tension.** The 12-case serial drift sweep ran for four hours with no output.
+Killing it discards whatever it had computed; waiting risks losing the session
+to a job that may never finish.
+
+**Chosen.** Killed it, and re-ran a narrower measurement that answered the
+same question.
+
+**Why.** The decisive comparisons -- serial versus parallel for the two
+suspect cases, and the intrinsic-versus-manufactured distinction -- had already
+come back from the earlier eight-case run. The full sweep was confirmation,
+not discovery, so its loss cost nothing that mattered. The apparent silence was
+partly an artefact: `grep` in the output pipeline buffers, so progress was
+invisible even when jobs were healthy. Later runs use `python -u` and avoid
+piping through `grep`.
+
+**Revisit if.** Nothing to revisit; recorded so the gap in wall-clock time in
+the trajectory has an explanation.

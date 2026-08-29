@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.harness.protocol import workers_for  # noqa: E402
 from src.harness.runner import DEFAULT_WORKERS, BatchReport, TestRunner  # noqa: E402
 from src.sandbox.executor import SandboxExecutor, assert_sandboxed  # noqa: E402
 from src.telemetry.tracer import Tracer  # noqa: E402
@@ -101,7 +102,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=int, default=500, help="runs per case")
     parser.add_argument(
-        "--workers", type=int, default=DEFAULT_WORKERS, help="concurrent runs"
+        "--workers",
+        type=int,
+        default=None,
+        help="override the locked per-case worker count (not for headline numbers)",
+    )
+    parser.add_argument(
+        "--protocol",
+        action="store_true",
+        help="use the locked per-case worker counts from src/harness/protocol.py",
     )
     parser.add_argument(
         "--cases", nargs="*", default=None, help="case names or numbers to limit to"
@@ -126,10 +135,17 @@ def main() -> int:
 
     reports: list[tuple[Path, BatchReport]] = []
     for case in cases:
+        # The locked protocol pins some cases to fewer workers because their
+        # rate is contention-sensitive; see src/harness/protocol.py.
+        workers = (
+            workers_for(case.name)
+            if args.protocol or args.workers is None
+            else args.workers
+        )
         report = runner.measure(
             case / "project",
             runs=args.runs,
-            workers=args.workers,
+            workers=workers,
             case_name=case.name,
             agent_name="corpus.baseline",
         )
@@ -149,7 +165,12 @@ def main() -> int:
             f"{report.distinct_signatures:>5} {str(report.is_sound):>6}"
         )
     print("-" * 74)
-    print(f"{len(reports)} cases, {total_wall:.0f}s total, {args.workers} workers\n")
+    worker_note = (
+        "locked per-case protocol"
+        if args.workers is None
+        else f"{args.workers} workers (override)"
+    )
+    print(f"{len(reports)} cases, {total_wall:.0f}s total, {worker_note}")
 
     summary_path = REPO_ROOT / "results" / "corpus_baseline.json"
     summary_path.write_text(
@@ -157,7 +178,7 @@ def main() -> int:
             {
                 "measured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "runs_per_case": args.runs,
-                "workers": args.workers,
+                "workers": args.workers or "locked per-case protocol",
                 "cases": {c.name: baseline_block(r) for c, r in reports},
             },
             indent=2,
