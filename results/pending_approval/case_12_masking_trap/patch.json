@@ -1,0 +1,12 @@
+{
+  "root_cause_class": "publication_ordering",
+  "root_cause_explanation": "In BackgroundIndexer._run, self.ready was set to True before populating the index dictionary in the loop. Setting self.ready to True only after the index dictionary is fully populated guarantees that any thread waiting on self.ready sees a complete index.",
+  "confidence": "high",
+  "files": [
+    {
+      "path": "app/indexer.py",
+      "new_content": "\"\"\"Background index construction.\n\nThe index is expensive to build, so callers start it and carry on, then wait\nfor it when they need the result.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport threading\n\n#: Documents in the corpus being indexed.\nDOCUMENT_COUNT = 10_500\n\n\nclass BackgroundIndexer:\n    \"\"\"Builds a search index on a worker thread.\"\"\"\n\n    def __init__(self) -> None:\n        self.index: dict[str, int] | None = None\n        self.ready = False\n        self._thread: threading.Thread | None = None\n\n    def start(self) -> None:\n        \"\"\"Begin building the index.\"\"\"\n        self._thread = threading.Thread(target=self._run, daemon=True)\n        self._thread.start()\n\n    def _run(self) -> None:\n        \"\"\"Build and publish the index.\"\"\"\n        self.index = {}\n        for number in range(DOCUMENT_COUNT):\n            self.index[f\"doc-{number}\"] = number * 2\n        self.ready = True\n\n    def wait_until_ready(self, timeout_s: float = 2.0) -> bool:\n        \"\"\"Block until the indexer reports the index available.\"\"\"\n        tick = threading.Event()\n        waited = 0.0\n        step = 0.001\n        while not self.ready and waited < timeout_s:\n            tick.wait(step)\n            waited += step\n        return self.ready\n",
+      "rationale": "Move setting self.ready = True to after the loop finishes populating self.index."
+    }
+  ]
+}

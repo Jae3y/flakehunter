@@ -1,0 +1,660 @@
+{
+  "measured_at": "2026-08-29T06:21:59Z",
+  "model": "gemini-3.6-flash",
+  "runs_per_case": "locked per-case protocol",
+  "workers": "locked per-case protocol",
+  "wall_clock_s": 209.3,
+  "usage": {
+    "calls": 12,
+    "prompt_tokens": 13616,
+    "output_tokens": 65839,
+    "total_tokens": 79455,
+    "note": "summed from per-case rows; this file merges several invocations"
+  },
+  "results": [
+    {
+      "case": "case_01_race_condition",
+      "root_cause_class": "race_condition",
+      "expected_class": "race_condition",
+      "cause_identified": true,
+      "root_cause_explanation": "RequestCounter.record reads and updates total and by_route across multiple worker threads without synchronization. Under concurrent thread execution, read-modify-write operations race against each other, overwriting updates and losing counts.",
+      "confidence": "high",
+      "files_changed": [
+        "app/counter.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.334,
+      "residual_flake_rate": 0.0,
+      "fixed": false,
+      "verification": {
+        "case": "case_01_race_condition@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 500,
+        "flake_rate": 0.0,
+        "is_sound": false,
+        "outcomes": {
+          "error": 500
+        },
+        "signatures": {
+          "error: pytest exit 2": 500
+        },
+        "distinct_signatures": 1,
+        "wall_s": 375.94,
+        "workers": 1,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1060,
+        "output": 1429,
+        "total": 2489
+      },
+      "latency_ms": 13406,
+      "patch": {
+        "root_cause_class": "race_condition",
+        "root_cause_explanation": "RequestCounter.record reads and updates total and by_route across multiple worker threads without synchronization. Under concurrent thread execution, read-modify-write operations race against each other, overwriting updates and losing counts.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/counter.py",
+            "new_content": "\"\"\"Request accounting for a small service.\"\"\"\n\nfrom __future__ import annotations\n\nimport threading\n\n\nclass RequestCounter:\n    \"\"\"Counts requests seen across worker threads.\n\n    The counter is shared by every worker. ``record`` reads the current total\n    and writes back the incremented value as two separate operations, protected\n    by a lock.\n    \"\"\"\n\n    def __init__( -> None:\n        self.total = 0\n        self.by_route: dict[str, int] = {}\n        self._lock = threading.Lock()\n\n    def record(self, route: str) -> None:\n        \"\"\"Record one request against ``route``.\"\"\"\n        with self._lock:\n            current = self.total\n            seen = self.by_route.get(route, 0)\n            self.by_route[route] = seen + 1\n            self.total = current + 1\n",
+            "rationale": "Add a threading.Lock to synchronize record calls across worker threads, preventing race conditions on total and by_route."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_02_test_order_dependency",
+      "root_cause_class": "test_order_dependency",
+      "expected_class": "test_order_dependency",
+      "cause_identified": true,
+      "root_cause_explanation": "test_metrics_plugin_registers_itself imports app.metrics, which mutates the global registry _PLUGINS and caches the module in sys.modules. If test_metrics_plugin_registers_itself runs before test_registry_is_empty_until_a_plugin_is_installed, the lingering registry state causes test_registry_is_empty_until_a_plugin_is_installed to fail, while app.registry.reset failed to purge cached plugin modules from sys.modules.",
+      "confidence": "high",
+      "files_changed": [
+        "app/registry.py",
+        "test_registry.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.328,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_02_test_order_dependency@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 26.2,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1233,
+        "output": 26137,
+        "total": 27370
+      },
+      "latency_ms": 122823,
+      "patch": {
+        "root_cause_class": "test_order_dependency",
+        "root_cause_explanation": "test_metrics_plugin_registers_itself imports app.metrics, which mutates the global registry _PLUGINS and caches the module in sys.modules. If test_metrics_plugin_registers_itself runs before test_registry_is_empty_until_a_plugin_is_installed, the lingering registry state causes test_registry_is_empty_until_a_plugin_is_installed to fail, while app.registry.reset failed to purge cached plugin modules from sys.modules.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/registry.py",
+            "new_content": "\"\"\"Process-wide registry of active plugins.\"\"\"\n\nfrom __future__ import annotations\n\nimport sys\n\n#: Module-level registry, shared by everything in the process.\n_PLUGINS: list[str] = []\n\n\ndef register(name: str) -> None:\n    \"\"\"Add ``name`` to the active plugin registry.\"\"\"\n    if name not in _PLUGINS:\n        _PLUGINS.append(name)\n\n\ndef reset() -> None:\n    \"\"\"Empty the registry.\"\"\"\n    for name in list(_PLUGINS):\n        sys.modules.pop(f\"app.{name}\", None)\n        sys.modules.pop(name, None)\n    _PLUGINS.clear()\n\n\ndef registered() -> list[str]:\n    \"\"\"The plugins currently registered.\"\"\"\n    return list(_PLUGINS)\n\n\ndef plugin_count() -> int:\n    \"\"\"How many plugins are registered.\"\"\"\n    return len(_PLUGINS)\n",
+            "rationale": "Update reset() in the registry source to remove registered plugin modules from sys.modules in addition to clearing _PLUGINS. This ensures that resetting the registry allows plugins to be properly re-registered upon import in subsequent tests."
+          },
+          {
+            "path": "test_registry.py",
+            "new_content": "\"\"\"Registry behaviour, and the metrics plugin that populates it.\"\"\"\n\nfrom __future__ import annotations\n\nfrom app.registry import plugin_count, registered, reset\n\n\ndef test_registry_is_empty_until_a_plugin_is_installed() -> None:\n    reset()\n    assert plugin_count() == 0, f\"unexpected plugins present: {registered()}\"\n\n\ndef test_metrics_plugin_registers_itself() -> None:\n    import app.metrics\n\n    assert app.metrics.collect() == {\"requests\": 0, \"errors\": 0}\n    assert \"metrics\" in registered()\n\n\ndef test_registry_can_be_reset() -> None:\n    reset()\n\n    assert plugin_count() == 0\n",
+            "rationale": "Call reset() at the start of test_registry_is_empty_until_a_plugin_is_installed to guarantee that global state is clean regardless of test execution order."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_03_port_collision",
+      "root_cause_class": "resource_leak_port_collision",
+      "expected_class": "resource_leak_port_collision",
+      "cause_identified": true,
+      "root_cause_explanation": "Service.start uses find_free_port, which checks for a free port by binding a probe socket and closing it. When multiple services start concurrently, two threads can probe the same free port before either thread claims it, causing an OSError when the second thread attempts to bind to the port.",
+      "confidence": "high",
+      "files_changed": [
+        "app/net.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.388,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_03_port_collision@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 42.88,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1457,
+        "output": 4228,
+        "total": 5685
+      },
+      "latency_ms": 21835,
+      "patch": {
+        "root_cause_class": "resource_leak_port_collision",
+        "root_cause_explanation": "Service.start uses find_free_port, which checks for a free port by binding a probe socket and closing it. When multiple services start concurrently, two threads can probe the same free port before either thread claims it, causing an OSError when the second thread attempts to bind to the port.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/net.py",
+            "new_content": "\"\"\"Helpers for standing up a listening service on a free port.\n\nPorts are allocated from a fixed range rather than by asking the OS for an\nephemeral port, so that the service's address is predictable for local tooling\nand firewall rules.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport socket\n\n#: Start of the range services are allocated from.\nBASE_PORT = 45000\n\n#: How far up the range to scan before giving up.\nSCAN_WIDTH = 64\n\n\ndef find_free_port(start: int = BASE_PORT) -> int:\n    \"\"\"Return the first port in the range that nothing is listening on.\n\n    Each candidate is tested by binding a probe socket and closing it again,\n    so the answer describes the moment the probe ran and not the moment the\n    caller gets around to using it.\n    \"\"\"\n    for port in range(start, start + SCAN_WIDTH):\n        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n        try:\n            probe.bind((\"127.0.0.1\", port))\n        except OSError:\n            continue\n        finally:\n            probe.close()\n        return port\n    raise RuntimeError(f\"no free port in {start}..{start + SCAN_WIDTH}\")\n\n\nclass Service:\n    \"\"\"A listening socket on a port from the configured range.\"\"\"\n\n    def __init__(self, name: str) -> None:\n        self.name = name\n        self.port: int | None = None\n        self._sock: socket.socket | None = None\n\n    def start(self) -> int:\n        \"\"\"Find a port, prepare the socket, then bind and listen.\"\"\"\n        for port in range(BASE_PORT, BASE_PORT + SCAN_WIDTH):\n            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)\n            try:\n                sock.bind((\"127.0.0.1\", port))\n                sock.listen(1)\n            except OSError:\n                sock.close()\n                continue\n            else:\n                self._sock = sock\n                self.port = port\n                return port\n        raise RuntimeError(f\"no free port in {BASE_PORT}..{BASE_PORT + SCAN_WIDTH}\")\n\n    def stop(self) -> None:\n        \"\"\"Close the listening socket.\"\"\"\n        if self._sock is not None:\n            self._sock.close()\n            self._sock = None\n",
+            "rationale": "Directly attempt to bind and listen on candidate ports in Service.start rather than checking and releasing the port beforehand via find_free_port."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_04_clock_dependence",
+      "root_cause_class": "clock_dependence",
+      "expected_class": "clock_dependence",
+      "cause_identified": true,
+      "root_cause_explanation": "The rate limiter calculated time buckets using `int(time.time())`, which groups requests by wall-clock epoch seconds. When two hits executed within 40ms of each other happened to cross a wall-clock second boundary, they landed in different buckets and caused the test to fail. Anchoring bucket windows relative to the RateLimiter creation time using a monotonic clock eliminates wall-clock boundary crossing nondeterminism.",
+      "confidence": "high",
+      "files_changed": [
+        "app/ratelimit.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.04,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_04_clock_dependence@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 26.23,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1028,
+        "output": 6167,
+        "total": 7195
+      },
+      "latency_ms": 33748,
+      "patch": {
+        "root_cause_class": "clock_dependence",
+        "root_cause_explanation": "The rate limiter calculated time buckets using `int(time.time())`, which groups requests by wall-clock epoch seconds. When two hits executed within 40ms of each other happened to cross a wall-clock second boundary, they landed in different buckets and caused the test to fail. Anchoring bucket windows relative to the RateLimiter creation time using a monotonic clock eliminates wall-clock boundary crossing nondeterminism.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/ratelimit.py",
+            "new_content": "\"\"\"A per-second request budget.\"\"\"\n\nfrom __future__ import annotations\n\nimport time\n\n\ndef current_bucket(start_time: float | None = None) -> int:\n    \"\"\"The second bucket the caller is currently in.\"\"\"\n    if start_time is None:\n        return int(time.time())\n    return int(time.monotonic() - start_time)\n\n\nclass RateLimiter:\n    \"\"\"Counts hits into whole-second buckets taken from the wall clock.\"\"\"\n\n    def __init__(self, budget: int) -> None:\n        self.budget = budget\n        self._counts: dict[int, int] = {}\n        self._start_time = time.monotonic()\n\n    def hit(self) -> int:\n        \"\"\"Record one hit and return the count within the current second.\"\"\"\n        bucket = current_bucket(self._start_time)\n        self._counts[bucket] = self._counts.get(bucket, 0) + 1\n        return self._counts[bucket]\n\n    def remaining(self) -> int:\n        \"\"\"Budget left in the current second.\"\"\"\n        return self.budget - self._counts.get(current_bucket(self._start_time), 0)\n",
+            "rationale": "Anchor bucket calculations relative to RateLimiter instantiation using time.monotonic() so that 1-second budget windows start deterministically from limiter creation rather than straddling arbitrary wall-clock integer second boundaries."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_05_hash_iteration_order",
+      "root_cause_class": "hash_iteration_order",
+      "expected_class": "hash_iteration_order",
+      "cause_identified": true,
+      "root_cause_explanation": "The `resolve` function iterates directly over a `set` of `Source` objects, whose iteration order is non-deterministic due to Python's per-process hash randomization. When the `legacy` source is yielded before the active production sources, `resolve` returns `'staging'` instead of `'production'`.",
+      "confidence": "high",
+      "files_changed": [
+        "app/config.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.022,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_05_hash_iteration_order@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 41.32,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1006,
+        "output": 4581,
+        "total": 5587
+      },
+      "latency_ms": 22111,
+      "patch": {
+        "root_cause_class": "hash_iteration_order",
+        "root_cause_explanation": "The `resolve` function iterates directly over a `set` of `Source` objects, whose iteration order is non-deterministic due to Python's per-process hash randomization. When the `legacy` source is yielded before the active production sources, `resolve` returns `'staging'` instead of `'production'`.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/config.py",
+            "new_content": "\"\"\"Configuration resolution across several enabled sources.\"\"\"\n\nfrom __future__ import annotations\n\n\nclass Source:\n    \"\"\"One place a setting can come from.\"\"\"\n\n    def __init__(self, name: str, enabled: bool, values: dict[str, str]) -> None:\n        self.name = name\n        self.enabled = enabled\n        self.values = values\n\n    def __repr__(self) -> str:\n        return f\"Source({self.name!r})\"\n\n\ndef resolve(setting: str, sources: set[Source]) -> str:\n    \"\"\"Return ``setting`` from the first enabled source that defines it.\n\n    Sources are held in a set because order was never thought to matter --\n    every source is supposed to agree.\n    \"\"\"\n    for source in sorted(sources, key=lambda s: s.name):\n        if source.enabled and setting in source.values:\n            return source.values[setting]\n    raise KeyError(setting)\n",
+            "rationale": "Sort sources by name before iterating to ensure deterministic evaluation order regardless of set hash randomization."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_06_unseeded_randomness",
+      "root_cause_class": "unseeded_randomness",
+      "expected_class": "unseeded_randomness",
+      "cause_identified": true,
+      "root_cause_explanation": "The assign_shards function used the process-wide unseeded random module to assign items to shards. Because assignment was non-deterministic, items occasionally clustered into fewer shards, leaving at least one shard empty and failing the assertion.",
+      "confidence": "high",
+      "files_changed": [
+        "app/sharding.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.28,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_06_unseeded_randomness@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 41.51,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 971,
+        "output": 5099,
+        "total": 6070
+      },
+      "latency_ms": 25408,
+      "patch": {
+        "root_cause_class": "unseeded_randomness",
+        "root_cause_explanation": "The assign_shards function used the process-wide unseeded random module to assign items to shards. Because assignment was non-deterministic, items occasionally clustered into fewer shards, leaving at least one shard empty and failing the assertion.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/sharding.py",
+            "new_content": "\"\"\"Distribute work items across shards.\"\"\"\n\nfrom __future__ import annotations\n\nimport random\n\n\ndef assign_shards(items: list[str], shard_count: int, seed: int = 0) -> dict[str, int]:\n    \"\"\"Assign each item to a shard deterministically using a seeded RNG.\"\"\"\n    rng = random.Random(seed)\n    return {item: rng.randrange(shard_count) for item in items}\n\n\ndef shard_sizes(assignment: dict[str, int], shard_count: int) -> list[int]:\n    \"\"\"How many items landed in each shard.\"\"\"\n    sizes = [0] * shard_count\n    for shard in assignment.values():\n        sizes[shard] += 1\n    return sizes\n",
+            "rationale": "Use a local seeded random.Random instance to make shard assignment deterministic while preserving the assignment logic."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_07_network_timeout",
+      "root_cause_class": "network_timeout_no_retry",
+      "expected_class": "network_timeout_no_retry",
+      "cause_identified": true,
+      "root_cause_explanation": "The client makes a single socket connection attempt with a tight timeout (5ms) that is very close to the service processing time (4.75ms). Any transient OS scheduling delay or network jitter causes the request to time out without retry, leading to intermittent test failures.",
+      "confidence": "high",
+      "files_changed": [
+        "app/client.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.058,
+      "residual_flake_rate": 0.008,
+      "fixed": false,
+      "verification": {
+        "case": "case_07_network_timeout@baseline",
+        "runs": 500,
+        "failures": 4,
+        "errors": 0,
+        "flake_rate": 0.008,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 496,
+          "fail": 4
+        },
+        "signatures": {
+          "pass": 496,
+          "TimeoutError at client.py:38: timed out": 4
+        },
+        "distinct_signatures": 1,
+        "wall_s": 44.93,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1338,
+        "output": 3061,
+        "total": 4399
+      },
+      "latency_ms": 14637,
+      "patch": {
+        "root_cause_class": "network_timeout_no_retry",
+        "root_cause_explanation": "The client makes a single socket connection attempt with a tight timeout (5ms) that is very close to the service processing time (4.75ms). Any transient OS scheduling delay or network jitter causes the request to time out without retry, leading to intermittent test failures.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/client.py",
+            "new_content": "\"\"\"Client for the internal status service.\"\"\"\n\nfrom __future__ import annotations\n\nimport socket\n\n#: How long to wait for the service before giving up.\nTIMEOUT_S = 0.005\nMAX_RETRIES = 3\n\n\nclass StatusClient:\n    \"\"\"Fetches a status line from the service over TCP.\"\"\"\n\n    def __init__(\n        self, host: str, port: int, timeout_s: float = TIMEOUT_S, max_retries: int = MAX_RETRIES\n    ) -> None:\n        self.host = host\n        self.port = port\n        self.timeout_s = timeout_s\n        self.max_retries = max_retries\n\n    def fetch_status(self) -> bytes:\n        \"\"\"Return the service's status line.\n\n        Raises:\n            OSError: On connect failure or timeout after all retries are exhausted.\n        \"\"\"\n        last_exc: OSError | None = None\n        for _ in range(self.max_retries):\n            try:\n                sock = socket.create_connection(\n                    (self.host, self.port), timeout=self.timeout_s\n                )\n                try:\n                    sock.settimeout(self.timeout_s)\n                    sock.sendall(b\"STATUS\\n\")\n                    return sock.recv(64)\n                finally:\n                    sock.close()\n            except OSError as exc:\n                last_exc = exc\n\n        if last_exc is not None:\n            raise last_exc\n        raise OSError(\"Fetch status failed\")\n",
+            "rationale": "Add retry logic to `fetch_status` so transient socket timeouts due to system scheduling jitter are retried up to `max_retries` attempts before propagating an exception."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_08_tempfile_collision",
+      "root_cause_class": "tempfile_collision",
+      "expected_class": "tempfile_collision",
+      "cause_identified": true,
+      "root_cause_explanation": "Temporary staging paths were generated using only the integer timestamp of the current second (`int(time.time())`), making them identical for writes occurring within the same second. Concurrent calls to `store` collided on the same staging path, causing one thread to overwrite or unlink the staging file while another thread was writing to or moving it.",
+      "confidence": "high",
+      "files_changed": [
+        "app/cache.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.054,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_08_tempfile_collision@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 42.14,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1152,
+        "output": 2950,
+        "total": 4102
+      },
+      "latency_ms": 15240,
+      "patch": {
+        "root_cause_class": "tempfile_collision",
+        "root_cause_explanation": "Temporary staging paths were generated using only the integer timestamp of the current second (`int(time.time())`), making them identical for writes occurring within the same second. Concurrent calls to `store` collided on the same staging path, causing one thread to overwrite or unlink the staging file while another thread was writing to or moving it.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/cache.py",
+            "new_content": "\"\"\"Durable on-disk cache with atomic writes.\"\"\"\n\nfrom __future__ import annotations\n\nimport os\nimport tempfile\nimport time\nimport uuid\nfrom pathlib import Path\n\n\ndef staging_path() -> Path:\n    \"\"\"The scratch file used while a write is in flight.\n\n    Named from the current second so that stale files from earlier runs are\n    easy to spot and sweep up.\n    \"\"\"\n    return Path(tempfile.gettempdir()) / f\"cache-staging-{int(time.time())}-{uuid.uuid4().hex}.tmp\"\n\n\ndef store(destination: Path, payload: str) -> None:\n    \"\"\"Write ``payload`` to ``destination`` without leaving it half-written.\n\n    The payload goes to a staging file first and is then moved into place, so\n    a reader never observes a partial file.\n    \"\"\"\n    staging = staging_path()\n    staging.write_text(payload, encoding=\"utf-8\")\n    os.replace(staging, destination)\n",
+            "rationale": "Appended a UUID hex string to the temporary staging path filename to guarantee uniqueness across concurrent threads and calls within the same second."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_09_float_tolerance",
+      "root_cause_class": "float_tolerance",
+      "expected_class": "float_tolerance",
+      "cause_identified": true,
+      "root_cause_explanation": "Floating-point addition is non-associative, so summing numbers across concurrent thread completions in non-deterministic order produces varying precision rounding errors (e.g. 4.199999999999999 vs 4.2). Comparing the accumulated total directly against an exact floating-point value leads to intermittent failures. Using math.fsum provides exact floating-point summation regardless of completion order.",
+      "confidence": "high",
+      "files_changed": [
+        "app/billing.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.12,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_09_float_tolerance@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 40.86,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1047,
+        "output": 4744,
+        "total": 5791
+      },
+      "latency_ms": 23327,
+      "patch": {
+        "root_cause_class": "float_tolerance",
+        "root_cause_explanation": "Floating-point addition is non-associative, so summing numbers across concurrent thread completions in non-deterministic order produces varying precision rounding errors (e.g. 4.199999999999999 vs 4.2). Comparing the accumulated total directly against an exact floating-point value leads to intermittent failures. Using math.fsum provides exact floating-point summation regardless of completion order.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/billing.py",
+            "new_content": "\"\"\"Revenue aggregation across billing shards.\"\"\"\n\nfrom __future__ import annotations\n\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\nimport math\n\n\ndef shard_total(amounts: list[float]) -> float:\n    \"\"\"Sum one shard's line items.\"\"\"\n    return math.fsum(amounts)\n\n\ndef total_revenue(shards: list[list[float]]) -> float:\n    \"\"\"Sum every shard, accumulating results as the workers finish.\n\n    Shards are summed in parallel and folded into the running total in\n    whatever order they complete.\n    \"\"\"\n    with ThreadPoolExecutor(max_workers=4) as pool:\n        futures = [pool.submit(shard_total, shard) for shard in shards]\n        return math.fsum(future.result() for future in as_completed(futures))\n",
+            "rationale": "Use math.fsum for both shard summation and total accumulation to guarantee exact floating-point addition regardless of execution and completion order."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_10_async_ordering",
+      "root_cause_class": "async_ordering",
+      "expected_class": "async_ordering",
+      "cause_identified": true,
+      "root_cause_explanation": "The rendering pipeline used asyncio.as_completed to yield task results as they completed, causing the panel order to depend on non-deterministic thread scheduling. Replacing asyncio.as_completed with asyncio.gather ensures results are returned in the original submission order.",
+      "confidence": "high",
+      "files_changed": [
+        "app/pipeline.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.27,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_10_async_ordering@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 303.05,
+        "workers": 1,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1011,
+        "output": 2255,
+        "total": 3266
+      },
+      "latency_ms": 15347,
+      "patch": {
+        "root_cause_class": "async_ordering",
+        "root_cause_explanation": "The rendering pipeline used asyncio.as_completed to yield task results as they completed, causing the panel order to depend on non-deterministic thread scheduling. Replacing asyncio.as_completed with asyncio.gather ensures results are returned in the original submission order.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/pipeline.py",
+            "new_content": "\"\"\"Fan-out rendering for the dashboard.\"\"\"\n\nfrom __future__ import annotations\n\nimport asyncio\n\n#: Cost of rendering a panel, in loop iterations. Every panel costs the same,\n#: so no panel is intrinsically \"first to finish\" -- completion order is\n#: decided by thread scheduling alone, which is the nondeterminism this case\n#: is about.\nPANEL_WORK = 120_000\n\n\ndef _render(name: str, iterations: int) -> str:\n    \"\"\"Render one panel. CPU-bound, so it runs in a worker thread.\"\"\"\n    total = 0\n    for index in range(iterations):\n        total += index % 7\n    return f\"{name}:{total}\"\n\n\nasync def render_panels(names: list[str]) -> list[str]:\n    \"\"\"Render every panel, collecting results in input order.\"\"\"\n    loop = asyncio.get_running_loop()\n    tasks = [loop.run_in_executor(None, _render, name, PANEL_WORK) for name in names]\n    return list(await asyncio.gather(*tasks))\n",
+            "rationale": "Use asyncio.gather instead of asyncio.as_completed so that task results are returned in the input order rather than task completion order."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_11_cache_leak",
+      "root_cause_class": "cache_leak",
+      "expected_class": "cache_leak",
+      "cause_identified": true,
+      "root_cause_explanation": "The `price_for` function caches tier rates using `@functools.lru_cache`, but `set_rate` updates `_RATES` without invalidating this cache. Depending on test execution order, `price_for` may cache an initial rate in an earlier test, causing `test_promotional_rate_takes_effect` to read the stale cached rate after calling `set_rate`.",
+      "confidence": "high",
+      "files_changed": [
+        "app/pricing.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.316,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_11_cache_leak@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 40.85,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1217,
+        "output": 3171,
+        "total": 4388
+      },
+      "latency_ms": 16600,
+      "patch": {
+        "root_cause_class": "cache_leak",
+        "root_cause_explanation": "The `price_for` function caches tier rates using `@functools.lru_cache`, but `set_rate` updates `_RATES` without invalidating this cache. Depending on test execution order, `price_for` may cache an initial rate in an earlier test, causing `test_promotional_rate_takes_effect` to read the stale cached rate after calling `set_rate`.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/pricing.py",
+            "new_content": "\"\"\"Subscription pricing, memoised because it is read on every request.\"\"\"\n\nfrom __future__ import annotations\n\nimport functools\n\n#: The live rate card. Rates can be adjusted at runtime for promotions.\n_RATES: dict[str, int] = {\"basic\": 10, \"pro\": 40, \"enterprise\": 120}\n\n\ndef set_rate(tier: str, amount: int) -> None:\n    \"\"\"Adjust the rate for ``tier``.\"\"\"\n    _RATES[tier] = amount\n    price_for.cache_clear()\n\n\n@functools.lru_cache(maxsize=None)\ndef price_for(tier: str) -> int:\n    \"\"\"The current price for ``tier``.\n\n    Memoised: pricing is read on every request and the rate card rarely\n    changes.\n    \"\"\"\n    return _RATES[tier]\n",
+            "rationale": "Clear the `price_for` LRU cache whenever `set_rate` modifies `_RATES`, ensuring cached rate lookups are invalidated when rates are updated."
+          }
+        ]
+      }
+    },
+    {
+      "case": "case_12_masking_trap",
+      "root_cause_class": "publication_ordering",
+      "expected_class": "publication_ordering",
+      "cause_identified": true,
+      "root_cause_explanation": "The indexer sets `self.ready = True` and publishes an empty `self.index` dictionary before populating it. Readers waiting on `ready` observe the flag as set before document index construction is complete.",
+      "confidence": "high",
+      "files_changed": [
+        "app/indexer.py"
+      ],
+      "applied": true,
+      "apply_error": null,
+      "baseline_flake_rate": 0.032,
+      "residual_flake_rate": 0.0,
+      "fixed": true,
+      "verification": {
+        "case": "case_12_masking_trap@baseline",
+        "runs": 500,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 500
+        },
+        "signatures": {
+          "pass": 500
+        },
+        "distinct_signatures": 0,
+        "wall_s": 40.8,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "tokens": {
+        "prompt": 1096,
+        "output": 2017,
+        "total": 3113
+      },
+      "latency_ms": 18811,
+      "patch": {
+        "root_cause_class": "publication_ordering",
+        "root_cause_explanation": "The indexer sets `self.ready = True` and publishes an empty `self.index` dictionary before populating it. Readers waiting on `ready` observe the flag as set before document index construction is complete.",
+        "confidence": "high",
+        "files": [
+          {
+            "path": "app/indexer.py",
+            "new_content": "\"\"\"Background index construction.\n\nThe index is expensive to build, so callers start it and carry on, then wait\nfor it when they need the result.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport threading\n\n#: Documents in the corpus being indexed.\nDOCUMENT_COUNT = 10_500\n\n\nclass BackgroundIndexer:\n    \"\"\"Builds a search index on a worker thread.\"\"\"\n\n    def __init__(self) -> None:\n        self.index: dict[str, int] | None = None\n        self.ready = False\n        self._thread: threading.Thread | None = None\n\n    def start(self) -> None:\n        \"\"\"Begin building the index.\"\"\"\n        self._thread = threading.Thread(target=self._run, daemon=True)\n        self._thread.start()\n\n    def _run(self) -> None:\n        \"\"\"Build the index, then publish it.\"\"\"\n        index = {}\n        for number in range(DOCUMENT_COUNT):\n            index[f\"doc-{number}\"] = number * 2\n        self.index = index\n        self.ready = True\n\n    def wait_until_ready(self, timeout_s: float = 2.0) -> bool:\n        \"\"\"Block until the indexer reports the index available.\"\"\"\n        tick = threading.Event()\n        waited = 0.0\n        step = 0.001\n        while not self.ready and waited < timeout_s:\n            tick.wait(step)\n            waited += step\n        return self.ready\n",
+            "rationale": "Construct the index fully before assigning `self.index` and setting `self.ready = True`, ensuring the index is complete when callers observe `ready` as True."
+          }
+        ]
+      }
+    }
+  ]
+}

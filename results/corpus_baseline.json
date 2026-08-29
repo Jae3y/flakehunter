@@ -1,0 +1,187 @@
+{
+  "measured_at": "2026-08-29T05:13:19Z",
+  "runs_per_case": 100,
+  "workers": 1,
+  "cases": {
+    "case_01_race_condition": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 96,
+      "flake_rate": 0.96,
+      "distinct_signatures": 1,
+      "signatures": {
+        "AssertionError at test_counter.py:31: assert <n> == (<n> * <n>)": 96,
+        "pass": 4
+      },
+      "wall_s": 69.53,
+      "sound": true
+    },
+    "case_02_test_order_dependency": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 25,
+      "flake_rate": 0.25,
+      "distinct_signatures": 1,
+      "signatures": {
+        "AssertionError at test_registry.py:9: unexpected plugins present: <seq>": 25,
+        "pass": 75
+      },
+      "wall_s": 55.94,
+      "sound": true
+    },
+    "case_03_port_collision": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 59,
+      "flake_rate": 0.59,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 41,
+        "AssertionError at test_net.py:37: bind failed for <n> service(s): <seq> Address already in use": 59
+      },
+      "wall_s": 55.91,
+      "sound": true
+    },
+    "case_04_clock_dependence": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 4,
+      "flake_rate": 0.04,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 96,
+        "AssertionError at test_ratelimit.py:22: the second hit landed in a different bucket": 4
+      },
+      "wall_s": 59.17,
+      "sound": true
+    },
+    "case_05_hash_iteration_order": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 4,
+      "flake_rate": 0.04,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 96,
+        "AssertionError at test_config.py:19: assert <str> == <str>": 4
+      },
+      "wall_s": 53.9,
+      "sound": true
+    },
+    "case_06_unseeded_randomness": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 24,
+      "flake_rate": 0.24,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 76,
+        "AssertionError at test_sharding.py:16: an idle shard: <seq>": 24
+      },
+      "wall_s": 54.16,
+      "sound": true
+    },
+    "case_07_network_timeout": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 34,
+      "flake_rate": 0.34,
+      "distinct_signatures": 1,
+      "signatures": {
+        "TimeoutError at client.py:35: timed out": 34,
+        "pass": 66
+      },
+      "wall_s": 61.0,
+      "sound": true
+    },
+    "case_08_tempfile_collision": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 24,
+      "flake_rate": 0.24,
+      "distinct_signatures": 1,
+      "signatures": {
+        "AssertionError at test_cache.py:39: <n> write(s) failed: <seq> No such file or directory: <str> -> <str>": 24,
+        "pass": 76
+      },
+      "wall_s": 53.6,
+      "sound": true
+    },
+    "case_09_float_tolerance": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 22,
+      "flake_rate": 0.22,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 78,
+        "AssertionError at test_billing.py:24: assert <f> == <f>": 22
+      },
+      "wall_s": 52.53,
+      "sound": true
+    },
+    "case_10_async_ordering": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 62,
+      "flake_rate": 0.62,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 38,
+        "AssertionError at test_pipeline.py:15: assert <seq> == <seq>": 62
+      },
+      "wall_s": 63.02,
+      "sound": true
+    },
+    "case_11_cache_leak": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 32,
+      "flake_rate": 0.32,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 68,
+        "AssertionError at test_pricing.py:29: assert <n> == <n>": 32
+      },
+      "wall_s": 52.4,
+      "sound": true
+    },
+    "case_12_masking_trap": {
+      "measured_at": "2026-08-29T05:13:19Z",
+      "runs": 100,
+      "workers": 1,
+      "strategy": "spawn",
+      "failures": 20,
+      "flake_rate": 0.2,
+      "distinct_signatures": 1,
+      "signatures": {
+        "pass": 80,
+        "AssertionError at test_indexer.py:14: assert <n> == <n>": 20
+      },
+      "wall_s": 52.67,
+      "sound": true
+    }
+  }
+}

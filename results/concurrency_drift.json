@@ -1,0 +1,94 @@
+{
+  "measured_at": "2026-08-29T01:18:01Z",
+  "threshold": 0.15,
+  "cases": {
+    "case_01_race_condition": {
+      "serial_flake_rate": 0.0,
+      "parallel_flake_rate": 0.25,
+      "drift": 0.25,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": false,
+      "recommended_workers": 1,
+      "serial_wall_s": 53.3,
+      "parallel_wall_s": 12.7
+    },
+    "case_03_port_collision": {
+      "serial_flake_rate": 0.455,
+      "parallel_flake_rate": 0.33,
+      "drift": 0.125,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": true,
+      "recommended_workers": 8,
+      "serial_wall_s": 46.7,
+      "parallel_wall_s": 10.9
+    },
+    "case_04_clock_dependence": {
+      "serial_flake_rate": 0.06,
+      "parallel_flake_rate": 0.02,
+      "drift": 0.04,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": true,
+      "recommended_workers": 8,
+      "serial_wall_s": 54.2,
+      "parallel_wall_s": 11.2
+    },
+    "case_07_network_timeout": {
+      "serial_flake_rate": 0.025,
+      "parallel_flake_rate": 0.08,
+      "drift": 0.055,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": true,
+      "recommended_workers": 8,
+      "serial_wall_s": 58.9,
+      "parallel_wall_s": 12.1
+    },
+    "case_08_tempfile_collision": {
+      "serial_flake_rate": 0.01,
+      "parallel_flake_rate": 0.045,
+      "drift": 0.035,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": true,
+      "recommended_workers": 8,
+      "serial_wall_s": 48.2,
+      "parallel_wall_s": 11.5
+    },
+    "case_09_float_tolerance": {
+      "serial_flake_rate": 0.155,
+      "parallel_flake_rate": 0.135,
+      "drift": 0.02,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": true,
+      "recommended_workers": 8,
+      "serial_wall_s": 47.3,
+      "parallel_wall_s": 11.3
+    },
+    "case_10_async_ordering": {
+      "serial_flake_rate": 0.0,
+      "parallel_flake_rate": 0.115,
+      "drift": 0.115,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": true,
+      "recommended_workers": 8,
+      "serial_wall_s": 54.1,
+      "parallel_wall_s": 12.9
+    },
+    "case_12_masking_trap": {
+      "serial_flake_rate": 0.0,
+      "parallel_flake_rate": 0.0,
+      "drift": 0.0,
+      "runs_per_arm": 200,
+      "parallel_workers": 8,
+      "within_threshold": true,
+      "recommended_workers": 8,
+      "serial_wall_s": 47.4,
+      "parallel_wall_s": 10.7
+    }
+  }
+}

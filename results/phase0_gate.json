@@ -1,0 +1,115 @@
+{
+  "phase": 0,
+  "python": "3.11.9",
+  "checks": [
+    {
+      "name": "tracer schema",
+      "passed": true,
+      "detail": "3 records, all 12 fields valid",
+      "data": {
+        "records": 3,
+        "path": "/app/traces/phase0-tracer-check-20260828T232515Z.jsonl"
+      }
+    },
+    {
+      "name": "trace gap-marker policy",
+      "passed": true,
+      "detail": "survives blips, resets on success, escalates at 3 consecutive; 4 markers, all schema-valid, sequence contiguous",
+      "data": {
+        "markers": 4,
+        "total_gaps": 4,
+        "escalated_at": 3
+      }
+    },
+    {
+      "name": "executor outcomes",
+      "passed": true,
+      "detail": "pass/fail/timeout all classified correctly",
+      "data": {
+        "test_pass.py": "pass",
+        "test_fail.py": "fail",
+        "test_hang.py": "timeout"
+      }
+    },
+    {
+      "name": "execution cost",
+      "passed": true,
+      "detail": "spawn 505.2 ms/run (~218.9 min per evaluation), fork 202.8 ms/run, tracing adds 34.1 ms/run",
+      "data": {
+        "spawn_traced": {
+          "runs": 60,
+          "median_ms": 539.3,
+          "mean_ms": 550.1,
+          "p95_ms": 628.0,
+          "projected_full_eval_minutes": 233.7
+        },
+        "spawn_untraced": {
+          "runs": 60,
+          "median_ms": 505.2,
+          "mean_ms": 511.8,
+          "p95_ms": 558.2,
+          "projected_full_eval_minutes": 218.9
+        },
+        "fork_untraced": {
+          "runs": 60,
+          "median_ms": 202.8,
+          "mean_ms": 211.3,
+          "p95_ms": 239.8,
+          "projected_full_eval_minutes": 87.9
+        },
+        "fork_speedup": 2.49,
+        "tracing_overhead_ms": 34.1
+      }
+    },
+    {
+      "name": "nondeterminism fidelity",
+      "passed": true,
+      "detail": "spawn flake rate 0.8 (varies), fork 1.0 (uniform, as documented)",
+      "data": {
+        "spawn": {
+          "runs": 60,
+          "outcomes": {
+            "fail": 48,
+            "pass": 12
+          },
+          "flake_rate": 0.8,
+          "varied": true,
+          "expected_to_vary": true
+        },
+        "fork": {
+          "runs": 60,
+          "outcomes": {
+            "fail": 60
+          },
+          "flake_rate": 1.0,
+          "varied": false,
+          "expected_to_vary": false
+        }
+      }
+    },
+    {
+      "name": "concurrency headroom",
+      "passed": true,
+      "detail": "8 workers: 93.4 ms/run (5.83x, ~40.5 min per evaluation), flake rate drift 0.0",
+      "data": {
+        "workers_1": {
+          "runs": 60,
+          "wall_s": 32.7,
+          "ms_per_run": 544.9,
+          "flake_rate": 0.75,
+          "projected_full_eval_minutes": 236.1
+        },
+        "workers_8": {
+          "runs": 60,
+          "wall_s": 5.61,
+          "ms_per_run": 93.4,
+          "flake_rate": 0.75,
+          "projected_full_eval_minutes": 40.5
+        },
+        "speedup": 5.83,
+        "flake_rate_drift": 0.0
+      }
+    }
+  ],
+  "trace_file_bytes": 43370
+}

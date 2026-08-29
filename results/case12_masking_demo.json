@@ -1,0 +1,257 @@
+{
+  "measured_at": "2026-08-29T00:27:07Z",
+  "runs_per_cell": 300,
+  "workers": 8,
+  "corpus_documents": 10500,
+  "stress_documents": 80000,
+  "extreme_documents": 600000,
+  "results": {
+    "baseline": {
+      "10500": {
+        "case": "baseline@10500",
+        "runs": 300,
+        "failures": 8,
+        "errors": 0,
+        "flake_rate": 0.0267,
+        "is_sound": true,
+        "outcomes": {
+          "fail": 8,
+          "pass": 292
+        },
+        "signatures": {
+          "AssertionError at test_indexer.py:14: assert <n> == <n>": 8,
+          "pass": 292
+        },
+        "distinct_signatures": 1,
+        "wall_s": 17.06,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "80000": {
+        "case": "baseline@80000",
+        "runs": 300,
+        "failures": 300,
+        "errors": 0,
+        "flake_rate": 1.0,
+        "is_sound": true,
+        "outcomes": {
+          "fail": 300
+        },
+        "signatures": {
+          "AssertionError at test_indexer.py:14: assert <n> == <n>": 300
+        },
+        "distinct_signatures": 1,
+        "wall_s": 19.35,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "600000": {
+        "case": "baseline@600000",
+        "runs": 300,
+        "failures": 300,
+        "errors": 0,
+        "flake_rate": 1.0,
+        "is_sound": true,
+        "outcomes": {
+          "fail": 300
+        },
+        "signatures": {
+          "AssertionError at test_indexer.py:14: assert <n> == <n>": 300
+        },
+        "distinct_signatures": 1,
+        "wall_s": 25.04,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      }
+    },
+    "masked_sleep": {
+      "10500": {
+        "case": "masked_sleep@10500",
+        "runs": 300,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 300
+        },
+        "signatures": {
+          "pass": 300
+        },
+        "distinct_signatures": 0,
+        "wall_s": 20.47,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "80000": {
+        "case": "masked_sleep@80000",
+        "runs": 300,
+        "failures": 23,
+        "errors": 0,
+        "flake_rate": 0.0767,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 277,
+          "fail": 23
+        },
+        "signatures": {
+          "pass": 277,
+          "AssertionError at test_indexer.py:17: assert <n> == <n>": 23
+        },
+        "distinct_signatures": 1,
+        "wall_s": 20.82,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "600000": {
+        "case": "masked_sleep@600000",
+        "runs": 300,
+        "failures": 300,
+        "errors": 0,
+        "flake_rate": 1.0,
+        "is_sound": true,
+        "outcomes": {
+          "fail": 300
+        },
+        "signatures": {
+          "AssertionError at test_indexer.py:17: assert <n> == <n>": 300
+        },
+        "distinct_signatures": 1,
+        "wall_s": 28.67,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      }
+    },
+    "masked_retry": {
+      "10500": {
+        "case": "masked_retry@10500",
+        "runs": 300,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 300
+        },
+        "signatures": {
+          "pass": 300
+        },
+        "distinct_signatures": 0,
+        "wall_s": 16.82,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "80000": {
+        "case": "masked_retry@80000",
+        "runs": 300,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 300
+        },
+        "signatures": {
+          "pass": 300
+        },
+        "distinct_signatures": 0,
+        "wall_s": 19.18,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "600000": {
+        "case": "masked_retry@600000",
+        "runs": 300,
+        "failures": 297,
+        "errors": 0,
+        "flake_rate": 0.99,
+        "is_sound": true,
+        "outcomes": {
+          "fail": 297,
+          "pass": 3
+        },
+        "signatures": {
+          "AssertionError at test_indexer.py:20: assert <n> == <n>": 297,
+          "pass": 3
+        },
+        "distinct_signatures": 1,
+        "wall_s": 42.78,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      }
+    },
+    "true_fix": {
+      "10500": {
+        "case": "true_fix@10500",
+        "runs": 300,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 300
+        },
+        "signatures": {
+          "pass": 300
+        },
+        "distinct_signatures": 0,
+        "wall_s": 16.61,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "80000": {
+        "case": "true_fix@80000",
+        "runs": 300,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 300
+        },
+        "signatures": {
+          "pass": 300
+        },
+        "distinct_signatures": 0,
+        "wall_s": 18.13,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      },
+      "600000": {
+        "case": "true_fix@600000",
+        "runs": 300,
+        "failures": 0,
+        "errors": 0,
+        "flake_rate": 0.0,
+        "is_sound": true,
+        "outcomes": {
+          "pass": 300
+        },
+        "signatures": {
+          "pass": 300
+        },
+        "distinct_signatures": 0,
+        "wall_s": 38.0,
+        "workers": 8,
+        "strategy": "spawn",
+        "env_overrides": {}
+      }
+    }
+  },
+  "verdicts": [
+    "masked_sleep: clean at the corpus workload, 23/300 failures at 80,000 docs -- the symptom was hidden, not removed",
+    "masked_retry: clean at the corpus workload, 297/300 failures at 600,000 docs -- the symptom was hidden, not removed",
+    "true_fix: zero failures at every workload -- the race is gone, not hidden"
+  ]
+}

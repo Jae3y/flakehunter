@@ -46,9 +46,30 @@ MAX_ATTEMPTS = 4
 #: Base backoff, doubled per attempt.
 BACKOFF_S = 2.0
 
+#: Longest we will honour a server-supplied retry delay before giving up. A
+#: per-minute rate limit says "retry in 30s" and is worth waiting out; a
+#: per-day quota also returns 429 with a short retryDelay, and waiting there
+#: just burns the session.
+MAX_HONOURED_RETRY_S = 90.0
+
+#: Quota ids that will not clear within a session, whatever retryDelay says.
+NON_RECOVERABLE_QUOTA = ("PerDay", "PerProjectPerModel-FreeTier")
+
 
 class LLMError(RuntimeError):
     """Raised when a call could not be completed after retries."""
+
+
+def _retry_delay_seconds(error: Mapping[str, Any]) -> float | None:
+    """Extract ``RetryInfo.retryDelay`` from a Google API error body."""
+    for item in error.get("details", []):
+        raw = item.get("retryDelay")
+        if isinstance(raw, str) and raw.endswith("s"):
+            try:
+                return float(raw[:-1])
+            except ValueError:
+                return None
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,9 +254,40 @@ class GeminiClient:
             if status == 200:
                 return self._parse(body, started, attempt)
 
-            detail = str(body.get("error", {}).get("message", body))[:200]
+            error = body.get("error", {})
+            detail = str(error.get("message", body))[:200]
             last_detail = f"HTTP {status}: {detail}"
             retryable = status in RETRYABLE or status == 0
+
+            # A 429 carries structured detail saying which quota was hit and
+            # how long to wait. A per-day quota is not something a retry loop
+            # can outlast, so say so plainly rather than sleeping four times
+            # and reporting a generic failure.
+            if status == 429:
+                quota_ids = [
+                    violation.get("quotaId", "")
+                    for item in error.get("details", [])
+                    for violation in item.get("violations", [])
+                ]
+                if any(
+                    marker in quota
+                    for quota in quota_ids
+                    for marker in NON_RECOVERABLE_QUOTA
+                ):
+                    raise LLMError(
+                        f"{self.model}: daily quota exhausted ({', '.join(quota_ids)}). "
+                        "This will not clear by retrying. Either wait for the quota "
+                        "to reset, switch FLAKEHUNTER_MODEL to a model with its own "
+                        "allowance, or move off the free tier."
+                    )
+                delay = _retry_delay_seconds(error)
+                if delay is not None and delay <= MAX_HONOURED_RETRY_S:
+                    turn.reflect(
+                        f"{turn.reflection}\nrate limited; honouring "
+                        f"server retryDelay of {delay:.0f}s".strip()
+                    )
+                    time.sleep(delay)
+                    continue
             turn.reflect(
                 f"{turn.reflection}\nattempt {attempt}: {last_detail}"
                 f"{' (retrying)' if retryable and attempt < MAX_ATTEMPTS else ''}".strip()

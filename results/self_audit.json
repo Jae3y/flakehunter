@@ -1,0 +1,22 @@
+[
+  {
+    "name": "changelog entries with measurements",
+    "passed": true,
+    "evidence": "001: 18 measurements; 002: 68 measurements; 003: 67 measurements"
+  },
+  {
+    "name": "decisions logged with reasoning",
+    "passed": true,
+    "evidence": "10 entries, all four sections present"
+  },
+  {
+    "name": "every case PENDING or UNRESOLVED",
+    "passed": false,
+    "evidence": "results/agent_results.json missing -- the agent arm did not run"
+  },
+  {
+    "name": "corpus unmodified by any patch",
+    "passed": true,
+    "evidence": "corpus/ clean against HEAD; 0 patch(es) held in results/pending_approval/ awaiting approval: []"
+  }
+]

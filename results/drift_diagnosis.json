@@ -1,0 +1,118 @@
+{
+  "measured_at": "2026-08-29T00:51:46Z",
+  "repeats": 5,
+  "runs_per_batch": 500,
+  "workers": 8,
+  "cases": [
+    {
+      "case": "case_01_race_condition",
+      "runs_per_batch": 500,
+      "batches": 5,
+      "rates": [
+        0.176,
+        0.214,
+        0.184,
+        0.188,
+        0.184
+      ],
+      "mean": 0.1892,
+      "min": 0.176,
+      "max": 0.214,
+      "spread": 0.038,
+      "observed_sd": 0.0145,
+      "binomial_sd": 0.0175,
+      "overdispersion": 0.83,
+      "chunk_rates_by_position": [
+        0.182,
+        0.198,
+        0.196,
+        0.194,
+        0.176
+      ]
+    },
+    {
+      "case": "case_12_masking_trap",
+      "runs_per_batch": 500,
+      "batches": 5,
+      "rates": [
+        0.014,
+        0.01,
+        0.008,
+        0.07,
+        0.03
+      ],
+      "mean": 0.0264,
+      "min": 0.008,
+      "max": 0.07,
+      "spread": 0.062,
+      "observed_sd": 0.0259,
+      "binomial_sd": 0.0072,
+      "overdispersion": 3.61,
+      "chunk_rates_by_position": [
+        0.024,
+        0.004,
+        0.014,
+        0.034,
+        0.056
+      ]
+    },
+    {
+      "case": "case_03_port_collision",
+      "runs_per_batch": 500,
+      "batches": 5,
+      "rates": [
+        0.374,
+        0.44,
+        0.426,
+        0.414,
+        0.448
+      ],
+      "mean": 0.4204,
+      "min": 0.374,
+      "max": 0.448,
+      "spread": 0.074,
+      "observed_sd": 0.029,
+      "binomial_sd": 0.0221,
+      "overdispersion": 1.32,
+      "chunk_rates_by_position": [
+        0.392,
+        0.424,
+        0.446,
+        0.418,
+        0.422
+      ]
+    },
+    {
+      "case": "case_06_unseeded_randomness",
+      "runs_per_batch": 500,
+      "batches": 5,
+      "rates": [
+        0.246,
+        0.268,
+        0.266,
+        0.252,
+        0.248
+      ],
+      "mean": 0.256,
+      "min": 0.246,
+      "max": 0.268,
+      "spread": 0.022,
+      "observed_sd": 0.0103,
+      "binomial_sd": 0.0195,
+      "overdispersion": 0.53,
+      "chunk_rates_by_position": [
+        0.27,
+        0.258,
+        0.242,
+        0.252,
+        0.258
+      ]
+    }
+  ],
+  "position_test": {
+    "case": "case_01_race_condition",
+    "before_filler": 0.412,
+    "after_filler": 0.52,
+    "shift": 0.108
+  }
+}

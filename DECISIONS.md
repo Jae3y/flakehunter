@@ -308,3 +308,44 @@ interval, which sets a floor on how cheap the case can be.
 version slow scales with thread count), or accept a lower serial flake rate
 and pin the case at a modest worker count where the rate is still non-zero.
 Re-measure the corpus baseline and both arms afterwards; do not mix.
+
+---
+
+## D-013 — Quota exhaustion: a fair subset on a fresh model, not a mixed comparison
+
+**Tension.** The Gemini free tier allows **20 requests per day per model**
+(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`). The baseline arm plus
+probes and re-runs consumed that allowance on `gemini-3.6-flash`, and the agent
+arm needs roughly four calls per case — about 44 for eleven cases. The agent
+run died on case 07 with HTTP 429 after completing case 12.
+
+Quota is scoped per model, and four other models had untouched allowances. The
+tempting move is to finish the agent arm on a different model. That would have
+produced a results table comparing a baseline on one model against an agent on
+another, which measures the models as much as the methods — exactly the
+confound the maintainer's "same model for both arms" rule exists to prevent.
+
+**Chosen.** Keep the two bodies of evidence separate and honestly labelled:
+
+1. The complete 12-case **baseline** on `gemini-3.6-flash`, plus the one agent
+   case that finished on it (case 12), archived as
+   `results/agent_results_gemini-3.6-flash.json`.
+2. A **fair head-to-head subset** — both arms, same model
+   (`gemini-3.7-flash`), same cases — sized to fit one model's daily
+   allowance.
+
+**Why.** A small comparison where both arms are matched supports a real
+conclusion. A large one where they are not supports none, and would be worse
+than reporting less, because the number would look authoritative while meaning
+nothing. Cases 07, 11 and 02 were chosen because they are the ones where
+execution feedback should matter most: 07 is where the baseline produced a fix
+that still failed 0.8% of the time while reporting high confidence.
+
+**Revisit if.** The project moves off the free tier, at which point the full
+12-case agent arm should run on the same model as the baseline and this subset
+becomes redundant.
+
+**Also fixed.** The client now reads the structured quota detail on a 429. A
+per-minute limit's `retryDelay` is honoured up to 90 s; a per-day quota raises
+immediately with a message naming the quota and the three ways out, rather
+than sleeping through four retries and reporting a generic failure.
