@@ -230,7 +230,46 @@ zero in any machine state.
 
 ---
 
-## Decisions taken without you — 14 in `DECISIONS.md`
+## The validator — and its own evolution
+
+Case 07's correct fix *is* a retry (`network_timeout_no_retry`); case 12's
+masking fix is *also* a retry. No pattern match separates them, so the
+validator does not try.
+
+**Structural** (AST, no execution): patch parses; assertions not removed or
+made trivially true; no skip/xfail/flaky marker; exact comparisons not loosened
+to `approx`; source actually modified; `conftest.py` untouched; **test-level
+condition constants unchanged**; a bare sleep is not the whole patch.
+
+**Behavioural**: re-verify at 4x CPU oversubscription, with three outcomes —
+clean, failures returned, or **inconclusive** (the batch errored, so nothing
+was learned). The third used to be reported as "the failure returns under
+load", a false accusation about a run in which no test executed.
+
+Two checks were added mid-session, each because a patch got past the validator:
+
+| Check | Added because |
+|---|---|
+| `test_conditions_unchanged` | Agent set `SERVICE_WORK_S` to 0.0, deleting the flakiness condition, and passed the stress pass — there was no window left to stretch |
+| `patch_parses` | Baseline's case 01 patch never compiled; 500 runs errored and reported 0.00% residual |
+
+### Retroactive re-check — all 14 accepted patches, stress on
+
+| Arm | Case | Verdict | Cause |
+|---|---|---|---|
+| agent | 07 | **REJECTED** | `test_conditions_unchanged` |
+| agent | 12 | valid | — |
+| baseline | 01 | **REJECTED** | `patch_parses` — line 16, invalid syntax |
+| baseline | 07 | **REJECTED** | `survives_stress` — 49/200 (24.5%) at 32 workers |
+| baseline | 02–06, 08–12 | valid | — |
+
+**Agent 1/2. Baseline 10/12.** `scripts/revalidate_pending.py` runs this in one
+command and writes a `REVALIDATION.md` — carrying the complete diff — into any
+package that no longer passes, so a verdict can be checked rather than trusted.
+
+---
+
+## Decisions taken without you — 17 in `DECISIONS.md`
 
 | # | Decision |
 |---|---|
@@ -248,6 +287,9 @@ zero in any machine state.
 | D-012 | Leave case 01 expensive, flag it, order it last |
 | D-013 | Quota: a fair same-model subset, never a mixed comparison |
 | D-014 | An unsound experiment produces no evidence, not a zero |
+| D-015 | Agent arm returns to the baseline's model once billing allowed it |
+| D-016 | Re-validate **every** previously accepted patch, not just the one that failed |
+| D-017 | The validator checks that a patch compiles (**corrects D-011's misdiagnosis**) |
 
 ---
 
@@ -300,24 +342,21 @@ experiment soundness, `e8215fc` results table.
 
 ## What to review first
 
-**1. `results/pending_approval/case_07_network_timeout/REVALIDATION.md`.**
+**1. `results/RESULTS.md`, the claimed → verified → legitimate table.** Twelve
+patches, twelve `high` confidences, ten that hold. That is the submission's
+strongest claim, now backed by the validator as well as the 500-run
+verifications.
 
-Not the success — the catch. The agent produced a patch that passed all seven
-checks in force at the time, including the stress re-verification, while
-raising a timeout to 5.0s and deleting the test's `SERVICE_WORK_S` delay
-outright. It is the clearest artefact in the repo of why anti-cheat validation
-has to be adversarial and why patches accepted under an older rule set cannot
-be trusted just for sitting in an approval directory.
+**2. `results/archive/rejected_patches/case_07_attempt1_rejected/REVALIDATION.md`**
+— the catch. The agent's patch passed every check in force at the time while
+doing two masking things, and the record carries the full diff so you can
+disagree with the verdict.
 
-**2. `results/pending_approval/case_12_masking_trap/`** — the one patch that
-still stands. 7/7 checks, 0/200 at 32 workers, 0/500 verification, re-validated
-against the current rules. Nothing applied.
+**3. `results/pending_approval/case_12_masking_trap/`** — the one patch still
+standing. 7/7 checks, 0/200 at 32 workers, 0/500 verification, re-validated
+against current rules. Nothing applied; `corpus/` clean against HEAD.
 
-**3. The claimed-versus-verified section** of `results/RESULTS.md`. Twelve
-confident patches, two of them wrong, indistinguishable without the harness.
-That framing is the submission's strongest claim, and how hard to lean on it is
-your call.
-
-**4. The quota.** Billing is on and calls succeed, but the daily free-tier cap
-is still being applied to this key. Nine cases are one working allowance away
-from a complete result; everything to run them is built, tested and committed.
+**4. The quota.** Free-tier 20/day is still enforced on this key despite
+billing. Nine cases plus case 07's fresh attempt are one working allowance away
+from a complete agent arm; everything to run them is built, tested and
+committed.
