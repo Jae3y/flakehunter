@@ -614,3 +614,47 @@ number is what it is, so nobody trims it back for speed.
 tolerance exists so a real signal moving the predicted direction is not
 discarded on a threshold, and it is also what makes this test statistical
 rather than deterministic. Both are consequences of the same deliberate choice.
+
+---
+
+## D-021 — Blast radius of the case 06 checkpoint contamination: none
+
+Recorded explicitly so it is not ambiguous later. The question: did the leaked
+60-run CONFIRM for case 06 ever feed a reported baseline or agent number?
+
+**No. It was caught by the guard before it reached any measurement.** Four
+independent confirmations, each checkable:
+
+1. **case 06 has no agent result in any results file.** Searched
+   `results/agent_results*.json` and `results/archive/agent_results*.json`: no
+   entry exists. The agent never completed a run on that case, so no agent
+   number could have been derived from the checkpoint.
+
+2. **The baseline arm cannot read checkpoints.** `grep -rn checkpoint
+   src/baseline/ scripts/run_baseline.py` returns nothing. Checkpointing is
+   agent-loop machinery only, so contamination of a baseline number was
+   structurally impossible rather than merely unobserved.
+
+3. **case 06's reported corpus baseline is a genuine 500-run measurement:**
+   140/500 = 28.0% at 8 workers, recorded in `metadata.json` by
+   `scripts/measure_corpus.py`, which also does not touch checkpoints.
+
+4. **The stale file was deleted** and a guard added: a checkpointed CONFIRM is
+   reused only when its run count is at least the run's configured budget, and
+   discarding one is recorded in `CaseOutcome.resumed_from` rather than
+   happening silently.
+
+**How it happened.** The stuck-loop tests exercise the real orchestrator
+against a real case with `confirm_runs=60`. Before `AgentConfig.checkpoint_root`
+existed, they wrote to the default location, so a test's undersized measurement
+landed in the same directory a live run would read from.
+
+**Why it was caught.** Not by review. The checkpoint inventory printed after
+the quota cutoff showed `case_06 confirm=12/60` beside seven cases reading
+`n/200`, and the odd number out was visible at a glance. That is the same
+property the project relies on everywhere else: record the conditions next to
+the number, and a wrong condition announces itself.
+
+The near-miss is the useful part. Had it gone unnoticed, a later resumed run
+would have reasoned from a 60-run sample while reporting as though it had 200 —
+quietly weaker evidence, with nothing in the output saying so.
