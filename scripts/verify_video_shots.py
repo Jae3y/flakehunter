@@ -73,7 +73,10 @@ def main() -> int:
     check("10 trajectory index", (REPO_ROOT / "traces" / "README.md").exists(),
           "traces/README.md")
 
-    outline = (REPO_ROOT / "docs" / "VIDEO_OUTLINE.md").read_text(encoding="utf-8")
+    outline_path = REPO_ROOT / "internal-notes" / "VIDEO_OUTLINE.md"
+    if not outline_path.exists():
+        outline_path = REPO_ROOT / "docs" / "VIDEO_OUTLINE.md"
+    outline = outline_path.read_text(encoding="utf-8")
     referenced = set(re.findall(r"`([A-Za-z0-9_./-]+\.(?:md|json|py|jsonl))`", outline))
     missing = sorted(p for p in referenced if not (REPO_ROOT / p).exists())
     check("every path named in the outline exists", not missing, f"missing={missing or 'none'}")

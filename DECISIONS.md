@@ -114,7 +114,7 @@ point the difference should be an explicit parameter rather than a fork.
 
 ## D-006 — The Phase 3 validator must test behaviour, not syntax
 
-Carried from `docs/PHASE3_REQUIREMENTS.md` and promoted here because it is now
+Carried from `internal-notes/PHASE3_REQUIREMENTS.md` and promoted here because it is now
 a build instruction rather than a note.
 
 **Tension.** The obvious anti-cheat rule is "reject a fix that adds `sleep()`
@@ -200,7 +200,7 @@ rule literally would break the other.
 panel cost. Measured after: 27.3% and 22.7% serial.
 
 **Why.** A case whose flakiness only exists under the harness's own
-concurrency means the agent would be diagnosing our measurement setup, not the
+concurrency means the agent would be diagnosing the measurement setup, not the
 bug. Worse, the agent's experiment vocabulary includes `serialize_execution` --
 it would have run that, seen the failure vanish, and correctly concluded "CPU
 contention", which is the wrong root cause for a case whose intended answer is

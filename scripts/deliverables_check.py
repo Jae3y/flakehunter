@@ -62,7 +62,7 @@ def main() -> int:
         ("2 Reproduction", "runtime and request cost per phase", "Requests |" in repro, "cost table"),
         ("2 Reproduction", "tested in a clean clone",
          "This guide was tested by following it" in repro, "tested end to end"),
-        ("3 Video", "shot list exists", (REPO_ROOT / "docs" / "VIDEO_OUTLINE.md").exists(), "present"),
+        ("3 Video", "shot list exists", ((REPO_ROOT / "internal-notes" / "VIDEO_OUTLINE.md").exists() or (REPO_ROOT / "docs" / "VIDEO_OUTLINE.md").exists()), "present"),
         ("3 Video", "named artifacts verified", shots.returncode == 0,
          (shots.stdout.strip().splitlines() or ["no output"])[-1]),
         ("3 Video", "THE VIDEO ITSELF", False, "requires human filming"),

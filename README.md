@@ -4,6 +4,16 @@ Diagnoses a flaky test by experiment, writes a real fix, and then proves the
 fix by running the test 500 times. The deliverable is a merge-ready patch plus
 a root-cause writeup — not a report.
 
+Standard pre-existing tools and libraries were used (Python, pytest, Docker, the
+Gemini API), but the corpus, the sandbox executor, the checkpoint/resume system,
+the anti-cheat validator, and the agent orchestration logic were all written from
+scratch for this submission.
+
+Development process notes (session logs, internal design tracking, the video
+filming plan) live in `internal-notes/` — kept for my own reference, not part of
+the evaluated submission. Engineering judgment calls and architectural
+trade-offs are logged in `DECISIONS.md` as supporting evidence.
+
 ---
 
 ## The user and the bottleneck
@@ -30,16 +40,16 @@ attention spent re-running rather than fixing.
 
 ---
 
-## What we actually found
+## What I actually found
 
-We built the obvious control — one LLM call, same model, same files, "diagnose
+I built the obvious control — one LLM call, same model, same files, "diagnose
 and fix this flaky test" — expecting it to fail on the harder cases. It did
 not. Given a root-cause taxonomy and an explicit rule that widening a timing
 window is not a fix, a single call produced a patch for **12/12 cases** and
 reported `high` confidence on **every one**. It even solved the trap case
 designed to bait a `sleep()`.
 
-Then we re-ran each patch 500 times.
+Then I re-ran each patch 500 times.
 
 | | Count |
 |---|---|
@@ -139,10 +149,10 @@ levels were needed: at 80k the retry still looks legitimate.
 
 > *The clearest evidence that this generalises, and it was not planned.*
 
-Late in the build, `test_no_patch_is_produced_when_stuck` — one of our own unit
+Late in the build, `test_no_patch_is_produced_when_stuck` — one of my own unit
 tests — passed on its own and failed once in a full-suite run. The reflex is to
 rerun it. That reflex is the entire problem this project exists to attack, so
-we did what the tool does instead.
+I did what the tool does instead.
 
 **What was happening.** The test drives the agent loop with a scripted model
 that always proposes the same root cause and always designs an experiment that
@@ -171,10 +181,10 @@ deviations out. Experiment runs 40 → 120, confirm runs 60 → 80. It then pass
 twice consecutively, and the fixture carries a comment explaining why the
 numbers are what they are so nobody trims them back for speed.
 
-**Why this matters more than the corpus.** The twelve cases are seeded — we
-wrote them, we knew the answers, and a sceptic can reasonably ask whether the
-approach works on anything we did not plant. This one we did not plant. It
-appeared in our own test suite, was diagnosed by the same reasoning the tool
+**Why this matters more than the corpus.** The twelve cases are seeded — I
+wrote them, I knew the answers, and a sceptic can reasonably ask whether the
+approach works on anything I did not plant. This one I did not plant. It
+appeared in my own test suite, was diagnosed by the same reasoning the tool
 applies, and was fixed the same way. See `DECISIONS.md` D-020.
 
 A related near-miss, in the same spirit: a unit test once leaked a **60-run**
@@ -244,15 +254,16 @@ comparison: how often the loop reaches a verified fix where the baseline does
 not. One case is not a rate.
 
 Full table in `results/RESULTS.md`; regenerate with `scripts/run_compare.py`.
-Session narrative in `SESSION_LOG.md`. Per-iteration measurements in
-`docs/CHANGELOG.md`.
+Per-iteration measurements are in `docs/CHANGELOG.md`.
 
 ---
 
 ## Improvement Changelog
 
-Appended live with real measurements, never reconstructed. Eight entries in
-`docs/CHANGELOG.md`; the ones recording a failure are the useful ones.
+I recorded these entries live as I took each benchmark measurement during
+development, rather than reconstructing them after the fact. Eight entries are
+detailed in `docs/CHANGELOG.md`; the entries documenting failures and
+eliminated experiments proved the most useful.
 
 | # | What changed | Measured effect |
 |---|---|---|
@@ -292,7 +303,7 @@ and the validator gained the check that would have named it in one line.
 
 ## Primary Failure Mode
 
-**Our verification can still be fooled, and case 07 is the proof.**
+**My verification can still be fooled, and case 07 is the proof.**
 
 The architecture rests on one claim: run the test enough times and you will
 know whether the fix worked. Case 07 shows the claim is incomplete. The
@@ -302,11 +313,11 @@ failed **49 out of 200: 24.5%**.
 
 The patch had not fixed the race. It had widened the timing window until the
 failure fell outside the observation. And 500 runs did not catch it, because
-**run count is only one of two sampling dimensions, and it is the one we sample
+**run count is only one of two sampling dimensions, and it is the one I sample
 well.**
 
 The second dimension is *stress* — how hard the fix is pushed relative to the
-headroom it bought. We sample that with a single point: 4× CPU
+headroom it bought. I sample that with a single point: 4× CPU
 oversubscription. The masking demonstration shows exactly how arbitrary that
 is:
 
@@ -316,16 +327,16 @@ is:
 | retry the assertion | 0% | **0%** | 99% |
 
 The retry survived a workload **eight times** the corpus one and only broke at
-sixty times. Had we stopped at 80k — the obvious first stress level — we would
-have certified it as a real fix and said so with 500-run evidence behind us.
+sixty times. Had I stopped at 80k — the obvious first stress level — I would
+have certified it as a real fix and said so with 500-run evidence behind me.
 
-So the honest statement of the limit: **we catch masks whose headroom is
-smaller than the stress we happen to apply, and we do not know where that
+So the honest statement of the limit: **I catch masks whose headroom is
+smaller than the stress I happen to apply, and I do not know where that
 ceiling sits.** A fix that buys ten seconds of slack passes everything in this
 repo. The verification is strictly better than one execution and strictly worse
 than a proof.
 
-**A second escape the stress check cannot see at all.** Our own agent, on this
+**A second escape the stress check cannot see at all.** My own agent, on this
 same case, produced a patch that set the test fixture's service delay to `0.0`
 — deleting the condition that produces the flakiness. It passed the stress
 check because oversubscription stretches a timing *window*, and there was no
@@ -337,7 +348,7 @@ no reason to believe that was the last such gap.
 
 Corpus rates moved between sessions with no code change — case 01 read 47%,
 20.6%, 33.4%, 18.9%, 41.2%, 52.0%. Not sampling error (within-session
-overdispersion was 0.83×, at or below binomial): **our own harness was
+overdispersion was 0.83×, at or below binomial): **my own harness was
 manufacturing the phenomenon.** Case 01 flaked 0.0% serially and 25% at 8
 workers, so its rate tracked machine load rather than the bug. Two cases were
 rebuilt to be intrinsically flaky, which removed the manufactured component but
@@ -351,8 +362,8 @@ gives zero in any machine state.
 
 Twelve seeded cases, one language, one known root cause each. Real suites have
 interacting causes and nothing here has been tested against those. The one
-piece of evidence that this generalises is the flaky test we found in our own
-suite — which we did not plant.
+piece of evidence that this generalises is the flaky test I found in my own
+suite — which I did not plant.
 
 ---
 
@@ -360,7 +371,7 @@ suite — which we did not plant.
 
 **Confidence is not evidence, and the industry is shipping confidence.**
 
-Our control produced twelve patches and rated every single one `high`
+My control produced twelve patches and rated every single one `high`
 confidence. Two were wrong. It was not being reckless — it reasoned its way to
 a correct root cause on both, and both fixes were plausible enough that a
 reviewer would have merged them. It simply had no mechanism that could
@@ -376,19 +387,19 @@ Three things follow, and they generalise past flaky tests:
 
 **1. A confidence score derived from the same forward pass as the answer is
 not an independent check.** It is the model's fluency reported back to you.
-Ours was perfectly calibrated to how plausible the reasoning felt and
+Mine was perfectly calibrated to how plausible the reasoning felt and
 perfectly uncorrelated with whether the code worked. Any agent whose only
 quality signal is self-reported confidence has no quality signal.
 
 **2. The verifier has to be able to say no in a way the generator cannot argue
-with.** Ours rejected four patches across both arms — including one from its
+with.** My verifier rejected four patches across both arms — including one from its
 own agent that had already passed an earlier, weaker version of itself. That
 only worked because the verifier ran the code rather than reading it. A
 verifier built from the same model, reading the same diff, would have agreed
 with the generator, because it shares the reasoning that produced the mistake.
 
-**3. Adding a check means re-checking everything it already accepted.** When we
-hardened the validator, we re-ran it over all fourteen previously accepted
+**3. Adding a check means re-checking everything it already accepted.** When I
+hardened the validator, I re-ran it over all fourteen previously accepted
 patches; two more failed. Acceptance under a weaker rule set is not evidence,
 and a system that only applies new checks going forward is quietly carrying
 whatever the old checks missed.

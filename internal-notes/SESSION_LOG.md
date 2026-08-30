@@ -12,7 +12,7 @@ Everything else is done. These genuinely cannot be finished without you.
 
 ### 1. Film the video — the only hard blocker
 
-`docs/VIDEO_OUTLINE.md` is a complete filming plan: seven timed beats, the
+`internal-notes/VIDEO_OUTLINE.md` is a complete filming plan: seven timed beats, the
 artifact to put on screen for each, a ten-shot capture list, and what to leave
 out. Every file, command and number it names has been verified to exist and to
 still contain the figure claimed:
