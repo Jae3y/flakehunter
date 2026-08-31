@@ -4,8 +4,8 @@ One JSON object per line, one line per turn. Every LLM call and every tool
 execution in this project routes through `src/telemetry/tracer.py`, so these
 files are the complete record — nothing was reconstructed afterwards.
 
-There are 60 files here because the project ran for three days. **This index
-names the six worth opening**, and what each one demonstrates. The rest are
+There are 61 files here because the project ran for three days. **This index
+names the seven worth opening**, and what each one demonstrates. The rest are
 listed at the bottom by category.
 
 ## Record schema
@@ -23,7 +23,7 @@ you want to follow the agent's reasoning rather than its actions.
 
 ---
 
-## The six to read
+## The seven to read
 
 ### 1. A loop that worked — `agent-20260829T062228Z.jsonl` (13 turns)
 
@@ -95,6 +95,18 @@ schema-valid marker is written in its place at the same `turn_id` rather than
 the record silently vanishing. `agent_name` is `telemetry.gap`; the sequence
 stays contiguous. Escalates to a hard failure after three consecutive gaps.
 
+### 7. The human decision recorded — `human-decision-20260830T150641Z.jsonl` (1 turn)
+
+The trace that actually closed Case 12's checkpoint. Recorded by
+`scripts/record_decision.py` after a human reviewed the patch held in
+`results/pending_approval/case_12_masking_trap/`.
+
+Here `human_checkpoint.decision` reads `"approved"`, not `"pending"` —
+recording the human reviewer's confirmation of the root cause, the contention
+experiment results, and the 0/500 verification. The patch remains unapplied to
+`corpus/` (`applied_to_corpus: false`), documenting the decision without
+modifying the evaluation benchmark.
+
 ---
 
 ## Everything else, by category
@@ -107,8 +119,9 @@ stays contiguous. Escalates to a hard failure after three consecutive gaps.
 | `revalidate-*` | 5 | Validator re-runs over accepted patches |
 | `phase0-gate-*` | 3 | 60 turns each of raw `sandbox.executor` runs — the per-run tracing mode |
 | `drift-*` | 2 | Serial vs parallel measurements from the drift investigation |
-| `case12-masking-*` | 2 | The masking demonstration: sleep, retry and true fix at three workloads |
+| `case12-masking-*` | 4 | The masking demonstration: sleep, retry and true fix at three workloads |
 | `verify-*`, `phase0-tracer-check-*` | 5 | Tracer self-checks |
+| `human-decision-*` | 1 | Human reviewer decision traces recorded via `scripts/record_decision.py` |
 
 ---
 

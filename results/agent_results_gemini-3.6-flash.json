@@ -11,7 +11,7 @@
   "results": [
     {
       "case": "case_12_masking_trap",
-      "status": "PENDING",
+      "status": "APPROVED",
       "expected_class": "publication_ordering",
       "concluded_class": "publication_ordering",
       "cause_identified": true,
@@ -202,7 +202,12 @@
         "output": 5151,
         "total": 7703
       },
-      "approval_dir": "/app/results/pending_approval/case_12_masking_trap"
+      "approval_dir": "/app/results/pending_approval/case_12_masking_trap",
+      "human_decision": {
+        "decision": "approved",
+        "note": "Root cause confirmed: self.ready was set to True before the index dictionary was fully populated, so a reader thread could see an incomplete index. Moving the flag to after the loop is correct, and it's backed by the amplify_contention experiment (1.0% -> 44.0% under contention) plus 0/500 failures on verification. Approved.",
+        "at": "2026-08-30T15:06:42Z"
+      }
     },
     {
       "case": "case_07_network_timeout",

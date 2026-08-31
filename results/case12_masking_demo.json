@@ -1,5 +1,5 @@
 {
-  "measured_at": "2026-08-29T00:27:07Z",
+  "measured_at": "2026-08-30T16:08:02Z",
   "runs_per_cell": 300,
   "workers": 8,
   "corpus_documents": 10500,
@@ -10,20 +10,20 @@
       "10500": {
         "case": "baseline@10500",
         "runs": 300,
-        "failures": 8,
+        "failures": 162,
         "errors": 0,
-        "flake_rate": 0.0267,
+        "flake_rate": 0.54,
         "is_sound": true,
         "outcomes": {
-          "fail": 8,
-          "pass": 292
+          "fail": 162,
+          "pass": 138
         },
         "signatures": {
-          "AssertionError at test_indexer.py:14: assert <n> == <n>": 8,
-          "pass": 292
+          "AssertionError at test_indexer.py:14: assert <n> == <n>": 162,
+          "pass": 138
         },
         "distinct_signatures": 1,
-        "wall_s": 17.06,
+        "wall_s": 27.94,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -42,7 +42,7 @@
           "AssertionError at test_indexer.py:14: assert <n> == <n>": 300
         },
         "distinct_signatures": 1,
-        "wall_s": 19.35,
+        "wall_s": 30.28,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -61,7 +61,7 @@
           "AssertionError at test_indexer.py:14: assert <n> == <n>": 300
         },
         "distinct_signatures": 1,
-        "wall_s": 25.04,
+        "wall_s": 31.74,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -82,7 +82,7 @@
           "pass": 300
         },
         "distinct_signatures": 0,
-        "wall_s": 20.47,
+        "wall_s": 28.75,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -90,20 +90,20 @@
       "80000": {
         "case": "masked_sleep@80000",
         "runs": 300,
-        "failures": 23,
+        "failures": 237,
         "errors": 0,
-        "flake_rate": 0.0767,
+        "flake_rate": 0.79,
         "is_sound": true,
         "outcomes": {
-          "pass": 277,
-          "fail": 23
+          "fail": 237,
+          "pass": 63
         },
         "signatures": {
-          "pass": 277,
-          "AssertionError at test_indexer.py:17: assert <n> == <n>": 23
+          "AssertionError at test_indexer.py:17: assert <n> == <n>": 237,
+          "pass": 63
         },
         "distinct_signatures": 1,
-        "wall_s": 20.82,
+        "wall_s": 29.59,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -122,7 +122,7 @@
           "AssertionError at test_indexer.py:17: assert <n> == <n>": 300
         },
         "distinct_signatures": 1,
-        "wall_s": 28.67,
+        "wall_s": 34.46,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -143,7 +143,7 @@
           "pass": 300
         },
         "distinct_signatures": 0,
-        "wall_s": 16.82,
+        "wall_s": 24.14,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -162,7 +162,7 @@
           "pass": 300
         },
         "distinct_signatures": 0,
-        "wall_s": 19.18,
+        "wall_s": 28.38,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -170,20 +170,18 @@
       "600000": {
         "case": "masked_retry@600000",
         "runs": 300,
-        "failures": 297,
+        "failures": 300,
         "errors": 0,
-        "flake_rate": 0.99,
+        "flake_rate": 1.0,
         "is_sound": true,
         "outcomes": {
-          "fail": 297,
-          "pass": 3
+          "fail": 300
         },
         "signatures": {
-          "AssertionError at test_indexer.py:20: assert <n> == <n>": 297,
-          "pass": 3
+          "AssertionError at test_indexer.py:20: assert <n> == <n>": 300
         },
         "distinct_signatures": 1,
-        "wall_s": 42.78,
+        "wall_s": 55.37,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -204,7 +202,7 @@
           "pass": 300
         },
         "distinct_signatures": 0,
-        "wall_s": 16.61,
+        "wall_s": 27.02,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -223,7 +221,7 @@
           "pass": 300
         },
         "distinct_signatures": 0,
-        "wall_s": 18.13,
+        "wall_s": 27.89,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -242,7 +240,7 @@
           "pass": 300
         },
         "distinct_signatures": 0,
-        "wall_s": 38.0,
+        "wall_s": 55.37,
         "workers": 8,
         "strategy": "spawn",
         "env_overrides": {}
@@ -250,8 +248,8 @@
     }
   },
   "verdicts": [
-    "masked_sleep: clean at the corpus workload, 23/300 failures at 80,000 docs -- the symptom was hidden, not removed",
-    "masked_retry: clean at the corpus workload, 297/300 failures at 600,000 docs -- the symptom was hidden, not removed",
+    "masked_sleep: clean at the corpus workload, 237/300 failures at 80,000 docs -- the symptom was hidden, not removed",
+    "masked_retry: clean at the corpus workload, 300/300 failures at 600,000 docs -- the symptom was hidden, not removed",
     "true_fix: zero failures at every workload -- the race is gone, not hidden"
   ]
 }
